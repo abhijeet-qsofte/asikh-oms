@@ -11,7 +11,7 @@ class Crate(Base):
     __table_args__ = (
         PrimaryKeyConstraint('id', 'harvest_date'),
         UniqueConstraint('qr_code', 'harvest_date', name='uq_crates_qr_code_harvest_date'),
-        {'postgresql_partition_by': 'RANGE (harvest_date)'},
+        # Partitioning removed: allow all harvest_date values in this table
     )
     
     id = Column(UUID(as_uuid=True), default=uuid.uuid4, nullable=False)
