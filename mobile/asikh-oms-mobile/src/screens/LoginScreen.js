@@ -4,10 +4,12 @@ import { StyleSheet, View, TouchableOpacity, Text, Image } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import { Button, TextInput } from '../../components';
-import { login, clearError } from '../../store/slices/authSlice';
-import { getDeviceInfo } from '../../utils/deviceInfo';
-import { theme } from '../../constants/theme';
+import Button from '../components/Button';
+import TextInput from '../components/TextInput';
+import { login, clearError } from '../store/slices/authSlice';
+import { getDeviceInfo } from '../utils/deviceInfo';
+import { theme } from '../constants/theme';
+import apiClient from '../api/client';
 
 const LoginSchema = Yup.object().shape({
   username: Yup.string().required('Username is required'),
@@ -33,6 +35,13 @@ export default function LoginScreen() {
     };
   }, [dispatch]);
 
+  useEffect(() => {
+    apiClient
+      .get('/api/health')
+      .then(res => console.log('API OK:', res.data))
+      .catch(err => console.error('API ❌', err.message));
+  }, []);
+
   const handleLogin = async (values) => {
     await dispatch(
       login({
@@ -47,7 +56,7 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Image
-          source={require('../../assets/logo.png')}
+          source={require('../assets/images/icon.png')}
           style={styles.logo}
           resizeMode="contain"
         />

@@ -7,16 +7,16 @@ import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 
 // Auth screens
-import LoginScreen from '../screens/auth/LoginScreen';
+import LoginScreen from '../screens/LoginScreen';
 
 // Main app screens
 import HomeScreen from '../screens/home/HomeScreen';
 import CrateScanScreen from '../screens/crates/CrateScanScreen';
 import CrateFormScreen from '../screens/crates/CrateFormScreen';
-import BatchListScreen from '../screens/batches/BatchListScreen';
-import BatchDetailScreen from '../screens/batches/BatchDetailScreen';
-import ReconciliationScreen from '../screens/reconciliation/ReconciliationScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+//import BatchListScreen from '../screens/batches/BatchListScreen';
+//import BatchDetailScreen from '../screens/batches/BatchDetailScreen';
+//import ReconciliationScreen from '../screens/reconciliation/ReconciliationScreen';
+//import ProfileScreen from '../screens/profile/ProfileScreen';
 
 const AuthStack = createStackNavigator();
 const MainStack = createStackNavigator();
@@ -54,9 +54,9 @@ const TabNavigator = () => (
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Crates" component={CrateNavigator} />
-    <Tab.Screen name="Batches" component={BatchNavigator} />
-    <Tab.Screen name="Reconcile" component={ReconciliationNavigator} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
+    {/* <Tab.Screen name="Batches" component={BatchNavigator} /> */}
+    {/* <Tab.Screen name="Reconcile" component={ReconciliationNavigator} /> */}
+    {/* <Tab.Screen name="Profile" component={ProfileScreen} /> */}
   </Tab.Navigator>
 );
 

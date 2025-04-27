@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native';
 import { Button as PaperButton } from 'react-native-paper';
 import { theme } from '../constants/theme';
 
-export const Button = ({ mode, style, children, ...props }) => (
+const Button = ({ mode, style, children, ...props }) => (
   <PaperButton
     mode={mode || 'contained'}
     style={[styles.button, style]}
@@ -27,3 +27,5 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
 });
+
+export default Button;

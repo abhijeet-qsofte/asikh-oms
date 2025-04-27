@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Camera } from 'expo-camera';
-import { BarCodeScanner } from 'expo-barcode-scanner';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../constants/theme';
 
@@ -67,7 +66,7 @@ export const QRScanner = ({ onScan, onClose }) => {
         flashMode={flashMode}
         onBarCodeScanned={handleBarCodeScanned}
         barCodeScannerSettings={{
-          barCodeTypes: [BarCodeScanner.Constants.BarCodeType.qr],
+          barCodeTypes: [Camera.Constants.BarCodeType.qr],
         }}
       >
         <View style={styles.overlay}>
