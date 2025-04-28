@@ -1,7 +1,16 @@
 // src/constants/config.js
 
 // API Configuration
-export const API_BASE_URL = 'http://192.168.1.100:8000'; // Replace with your API server address
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+// determine host for API calls: use Expo debuggerHost in dev, fallback to localhost or emulator loopback
+const hostName = Constants.manifest?.debuggerHost
+  ? Constants.manifest.debuggerHost.split(':')[0]
+  : Platform.OS === 'android'
+  ? '10.0.2.2'
+  : 'localhost';
+export const API_BASE_URL = `http://${hostName}:8000`;  // adjust port if needed
 
 // Storage Keys
 export const TOKEN_KEY = '@asikh:access_token';
