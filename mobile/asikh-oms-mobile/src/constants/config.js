@@ -10,7 +10,7 @@ const hostName = Constants.manifest?.debuggerHost
   : Platform.OS === 'android'
   ? '10.0.2.2'
   : 'localhost';
-export const API_BASE_URL = `http://${hostName}:8000`;  // adjust port if needed
+export const API_BASE_URL = `http://${hostName}:8000`;  // dynamically set based on device
 
 // Storage Keys
 export const TOKEN_KEY = '@asikh:access_token';

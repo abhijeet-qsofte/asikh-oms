@@ -37,19 +37,24 @@ export default function LoginScreen() {
 
   useEffect(() => {
     apiClient
-      .get('/api/health')
+      .get('/health')
       .then(res => console.log('API OK:', res.data))
       .catch(err => console.error('API ❌', err.message));
   }, []);
 
   const handleLogin = async (values) => {
-    await dispatch(
-      login({
-        username: values.username,
-        password: values.password,
-        deviceInfo,
-      })
-    );
+    try {
+      // unwrap to throw on error and capture stack
+      await dispatch(
+        login({
+          username: values.username,
+          password: values.password,
+          deviceInfo,
+        })
+      ).unwrap();
+    } catch (err) {
+      console.error('Login error stack:', err);
+    }
   };
 
   return (
