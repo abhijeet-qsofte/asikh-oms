@@ -24,7 +24,12 @@ import { theme } from '../../constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 
-export default function CrateListScreen({ navigation }) {
+export default function CrateListScreen({ navigation, route }) {
+  // Determine which mode we're in based on the route name
+  const routeName = route?.name || 'CrateList';
+  const isCrateMode = routeName === 'CrateList';
+  const isBatchMode = routeName === 'BatchList';
+  const isReconciliationMode = routeName === 'ReconciliationList';
   const dispatch = useDispatch();
   const isFocused = useIsFocused();
   const { crates, loading, error, pagination } = useSelector(
@@ -41,9 +46,17 @@ export default function CrateListScreen({ navigation }) {
   // Load crates when screen is focused
   useEffect(() => {
     if (isFocused) {
-      loadCrates();
+      if (isCrateMode) {
+        loadCrates();
+      } else if (isBatchMode) {
+        // In a real app, we would load batches here
+        console.log('Loading batches...');
+      } else if (isReconciliationMode) {
+        // In a real app, we would load reconciliation data here
+        console.log('Loading reconciliation data...');
+      }
     }
-  }, [isFocused, pagination.page, filters]);
+  }, [isFocused, pagination.page, filters, routeName]);
 
   // Function to load crates with current pagination and filters
   const loadCrates = async () => {
@@ -68,7 +81,7 @@ export default function CrateListScreen({ navigation }) {
 
   // Navigate to crate details
   const viewCrateDetails = (crate) => {
-    navigation.navigate('CrateDetails', { crate });
+    navigation.navigate('CrateDetail', { crate });
   };
 
   // Handle pagination
@@ -180,51 +193,125 @@ export default function CrateListScreen({ navigation }) {
     );
   };
 
-  // Render empty state
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons
-        name="cube-outline"
-        size={64}
-        color={theme.colors.placeholder}
-      />
-      <Text style={styles.emptyText}>No crates found</Text>
-      <Text style={styles.emptySubtext}>
-        Scan a QR code to start recording crates
-      </Text>
-    </View>
-  );
+
+
+  // Render different empty states based on mode
+  const renderEmpty = () => {
+    if (isBatchMode) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="archive-outline"
+            size={64}
+            color={theme.colors.placeholder}
+          />
+          <Text style={styles.emptyText}>No batches found</Text>
+          <Text style={styles.emptySubtext}>
+            Create a batch to start dispatching crates
+          </Text>
+        </View>
+      );
+    } else if (isReconciliationMode) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={64}
+            color={theme.colors.placeholder}
+          />
+          <Text style={styles.emptyText}>No batches to reconcile</Text>
+          <Text style={styles.emptySubtext}>
+            Select a batch to start reconciliation
+          </Text>
+        </View>
+      );
+    } else {
+      return (
+        <View style={styles.emptyContainer}>
+          <Ionicons
+            name="cube-outline"
+            size={64}
+            color={theme.colors.placeholder}
+          />
+          <Text style={styles.emptyText}>No crates found</Text>
+          <Text style={styles.emptySubtext}>
+            Scan a QR code to start recording crates
+          </Text>
+        </View>
+      );
+    }
+  };
 
   return (
     <View style={styles.container}>
       {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
-            {error.message || 'An error occurred while loading crates'}
+            {error.message || 'An error occurred while loading data'}
           </Text>
         </View>
       )}
 
-      <FlatList
-        data={crates}
-        renderItem={renderCrateItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={!loading && renderEmpty()}
-        ListFooterComponent={renderFooter}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.2}
-      />
+      {isCrateMode && (
+        <>
+          <FlatList
+            data={crates}
+            renderItem={renderCrateItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={!loading && renderEmpty()}
+            ListFooterComponent={renderFooter}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.2}
+          />
 
-      <FAB
-        style={styles.fab}
-        icon="qrcode"
-        label="Scan"
-        onPress={() => navigation.navigate('CrateScan')}
-      />
+          <FAB
+            style={styles.fab}
+            icon="qrcode"
+            label="Scan"
+            onPress={() => navigation.navigate('CrateScan')}
+          />
+        </>
+      )}
+
+      {isBatchMode && (
+        <>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Batch Management</Text>
+            <Text style={styles.emptySubtext}>
+              This screen will show batches for dispatch
+            </Text>
+          </View>
+
+          <FAB
+            style={styles.fab}
+            icon="archive-plus"
+            label="New Batch"
+            onPress={() => navigation.navigate('BatchScan')}
+          />
+        </>
+      )}
+
+      {isReconciliationMode && (
+        <>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>Reconciliation</Text>
+            <Text style={styles.emptySubtext}>
+              This screen will show batches for reconciliation
+            </Text>
+          </View>
+
+          <FAB
+            style={styles.fab}
+            icon="qrcode-scan"
+            label="Scan"
+            onPress={() => navigation.navigate('ReconciliationScan')}
+          />
+        </>
+      )}
     </View>
   );
 }

@@ -14,6 +14,7 @@ import HomeScreen from '../screens/home/HomeScreen';
 import CrateScanScreen from '../screens/crates/CrateScanScreen';
 import CrateFormScreen from '../screens/crates/CrateFormScreen';
 import CrateListScreen from '../screens/crates/crateListScreen';
+import CrateDetailsScreen from '../screens/crates/crateDetailScreen';
 //import BatchListScreen from '../screens/batches/BatchListScreen';
 //import BatchDetailScreen from '../screens/batches/BatchDetailScreen';
 //import ReconciliationScreen from '../screens/reconciliation/ReconciliationScreen';
@@ -55,34 +56,38 @@ const TabNavigator = () => (
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Crates" component={CrateNavigator} />
-    {/* <Tab.Screen name="Batches" component={BatchNavigator} /> */}
-    {/* <Tab.Screen name="Reconcile" component={ReconciliationNavigator} /> */}
+    <Tab.Screen name="Batches" component={BatchNavigator} />
+    <Tab.Screen name="Reconcile" component={ReconciliationNavigator} />
     {/* <Tab.Screen name="Profile" component={ProfileScreen} /> */}
   </Tab.Navigator>
 );
 
-// Stack navigators for each feature
+// Stack navigators for each feature - Harvest Entry Flow
 const CrateNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen name="CrateList" component={CrateListScreen} />
-    <MainStack.Screen name="CrateScan" component={CrateScanScreen} />
-    <MainStack.Screen name="CrateForm" component={CrateFormScreen} />
+    <MainStack.Screen name="CrateList" component={CrateListScreen} options={{ title: 'Crates' }} />
+    <MainStack.Screen name="CrateScan" component={CrateScanScreen} options={{ title: 'Scan Crate QR' }} />
+    <MainStack.Screen name="CrateForm" component={CrateFormScreen} options={{ title: 'Crate Details' }} />
+    <MainStack.Screen name="CrateDetail" component={CrateDetailsScreen} options={{ title: 'Crate Summary' }} />
   </MainStack.Navigator>
 );
 
+// Dispatch Scan Flow
 const BatchNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen name="BatchList" component={BatchListScreen} />
-    <MainStack.Screen name="BatchDetail" component={BatchDetailScreen} />
+    <MainStack.Screen name="BatchList" component={CrateListScreen} options={{ title: 'Batches' }} />
+    <MainStack.Screen name="BatchScan" component={CrateScanScreen} options={{ title: 'Scan for Batch' }} />
+    <MainStack.Screen name="BatchAssign" component={CrateFormScreen} options={{ title: 'Assign to Batch' }} />
+    <MainStack.Screen name="BatchDetail" component={CrateDetailsScreen} options={{ title: 'Batch Details' }} />
   </MainStack.Navigator>
 );
 
+// Reconciliation Flow
 const ReconciliationNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen
-      name="ReconciliationMain"
-      component={ReconciliationScreen}
-    />
+    <MainStack.Screen name="ReconciliationList" component={CrateListScreen} options={{ title: 'Select Batch' }} />
+    <MainStack.Screen name="ReconciliationScan" component={CrateScanScreen} options={{ title: 'Scan Crates' }} />
+    <MainStack.Screen name="ReconciliationDetail" component={CrateDetailsScreen} options={{ title: 'Reconciliation Summary' }} />
   </MainStack.Navigator>
 );
 

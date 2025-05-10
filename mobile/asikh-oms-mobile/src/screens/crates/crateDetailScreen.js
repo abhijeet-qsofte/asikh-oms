@@ -8,6 +8,7 @@ import {
   Text,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCrateById } from '../../store/slices/crateSlice';
@@ -17,7 +18,8 @@ import { theme } from '../../constants/theme';
 import { format } from 'date-fns';
 
 export default function CrateDetailsScreen({ route, navigation }) {
-  const { crate: initialCrate, crateId } = route.params || {};
+  // Add proper null checks and default values
+  const { crate: initialCrate, crateId } = (route && route.params) ? route.params : {};
   const dispatch = useDispatch();
   const { currentCrate, loading, error } = useSelector((state) => state.crates);
 
@@ -28,8 +30,8 @@ export default function CrateDetailsScreen({ route, navigation }) {
     }
   }, [crateId, dispatch]);
 
-  // Use initial crate from params or the fetched current crate
-  const crate = initialCrate || currentCrate;
+  // Use initial crate from params or the fetched current crate with proper null check
+  const crate = initialCrate || currentCrate || null;
 
   if (loading) {
     return (
@@ -73,7 +75,14 @@ export default function CrateDetailsScreen({ route, navigation }) {
         <Text style={styles.errorText}>Crate not found</Text>
         <Button
           mode="contained"
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            try {
+              navigation.goBack();
+            } catch (e) {
+              // If goBack fails, navigate to the CrateList screen
+              navigation.navigate('CrateList');
+            }
+          }}
           style={styles.errorButton}
         >
           Go Back
