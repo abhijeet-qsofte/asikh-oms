@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { QRScanner } from '../../components/QRScanner';
-import { Button } from '../../components/Button';
+import Button from '../../components/Button';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
 
