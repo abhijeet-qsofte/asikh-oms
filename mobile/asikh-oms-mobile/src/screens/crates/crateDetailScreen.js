@@ -1,5 +1,5 @@
 // src/screens/crates/CrateDetailsScreen.js
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchCrateById } from '../../store/slices/crateSlice';
+import * as Location from 'expo-location';
 import { Card, Title, Paragraph, Divider, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../constants/theme';
@@ -32,6 +33,37 @@ export default function CrateDetailsScreen({ route, navigation }) {
 
   // Use initial crate from params or the fetched current crate with proper null check
   const crate = initialCrate || currentCrate || null;
+  
+  // State for location display
+  const [locationDisplay, setLocationDisplay] = useState('');
+  
+  // Get city name from coordinates when crate data is available
+  useEffect(() => {
+    if (crate && crate.gps_location) {
+      (async () => {
+        try {
+          const geocode = await Location.reverseGeocodeAsync({
+            latitude: crate.gps_location.lat,
+            longitude: crate.gps_location.lng,
+          });
+          
+          if (geocode && geocode.length > 0) {
+            const { city, district, subregion, region } = geocode[0];
+            // Use the most specific location available
+            const locationName = city || district || subregion || region || 'Unknown';
+            setLocationDisplay(
+              `${locationName} (${crate.gps_location.lat.toFixed(4)}, ${crate.gps_location.lng.toFixed(4)})`
+            );
+          } else {
+            setLocationDisplay('');
+          }
+        } catch (error) {
+          console.log('Error getting location name:', error);
+          setLocationDisplay('');
+        }
+      })();
+    }
+  }, [crate]);
 
   if (loading) {
     return (
@@ -208,8 +240,7 @@ export default function CrateDetailsScreen({ route, navigation }) {
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>GPS Location:</Text>
               <Text style={styles.infoValue}>
-                Lat: {crate.gps_location.lat.toFixed(6)}, Lng:{' '}
-                {crate.gps_location.lng.toFixed(6)}
+                {locationDisplay || `Lat: ${crate.gps_location.lat.toFixed(6)}, Lng: ${crate.gps_location.lng.toFixed(6)}`}
               </Text>
             </View>
           )}

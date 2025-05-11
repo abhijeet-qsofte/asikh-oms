@@ -33,6 +33,7 @@ export default function CrateFormScreen({ route, navigation }) {
   const currentUser = useSelector((state) => state.auth.user);
 
   const [location, setLocation] = useState(null);
+  const [locationDisplay, setLocationDisplay] = useState('');
   const [photo, setPhoto] = useState(null);
   const [varieties, setVarieties] = useState([
     { id: '91c7f473-6be5-4e49-a547-29e4ee53e0ef', name: 'Alphonso' },
@@ -54,6 +55,32 @@ export default function CrateFormScreen({ route, navigation }) {
         accuracy: Location.Accuracy.Balanced,
       });
       setLocation(currentLocation.coords);
+      
+      // Use reverse geocoding to get the city name
+      try {
+        const geocode = await Location.reverseGeocodeAsync({
+          latitude: currentLocation.coords.latitude,
+          longitude: currentLocation.coords.longitude,
+        });
+        
+        if (geocode && geocode.length > 0) {
+          const { city, district, subregion, region } = geocode[0];
+          // Use the most specific location available
+          const locationName = city || district || subregion || region || 'Unknown';
+          setLocationDisplay(
+            `${locationName} (${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)})`
+          );
+        } else {
+          setLocationDisplay(
+            `(${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)})`
+          );
+        }
+      } catch (error) {
+        console.log('Error getting location name:', error);
+        setLocationDisplay(
+          `(${currentLocation.coords.latitude.toFixed(4)}, ${currentLocation.coords.longitude.toFixed(4)})`
+        );
+      }
     })();
   }, []);
 
@@ -256,8 +283,7 @@ export default function CrateFormScreen({ route, navigation }) {
                       color={theme.colors.primary}
                     />
                     <Text style={styles.locationText}>
-                      Lat: {location.latitude.toFixed(6)}, Lng:{' '}
-                      {location.longitude.toFixed(6)}
+                      {locationDisplay || `Lat: ${location.latitude.toFixed(6)}, Lng: ${location.longitude.toFixed(6)}`}
                     </Text>
                   </View>
                 ) : (
