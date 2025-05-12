@@ -145,15 +145,29 @@ const batchService = {
    */
   getReconciliationStatus: async (batchId) => {
     try {
-      console.log(`Fetching reconciliation status for batch: ${batchId}`);
-      const url = `/api/batches/${batchId}/reconciliation-status`;
-      console.log(`API URL: ${url}`);
-      const response = await apiClient.get(url);
+      console.log(`Getting reconciliation status for batch ${batchId}`);
+      const response = await apiClient.get(`/api/batches/${batchId}/reconciliation-stats`);
       console.log('Reconciliation status response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error getting reconciliation status:', error.response?.data || error.message);
-      console.error('Error details:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * Get detailed weight information for a batch
+   * @param {string} batchId - The batch ID
+   * @returns {Promise} - The API response with detailed weight information
+   */
+  getBatchWeightDetails: async (batchId) => {
+    try {
+      console.log(`Getting detailed weight information for batch ${batchId}`);
+      const response = await apiClient.get(`/api/batches/${batchId}/weight-details`);
+      console.log('Weight details response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting weight details:', error.response?.data || error.message);
       throw error;
     }
   },

@@ -33,6 +33,7 @@ class Batch(Base):
     to_location_obj = relationship("Packhouse", back_populates="batches", foreign_keys=[to_location])
     crates = relationship("Crate", back_populates="batch")
     reconciliation_logs = relationship("ReconciliationLog", back_populates="batch")
+    crate_reconciliations = relationship("CrateReconciliation", back_populates="batch")
     
     def __repr__(self):
         return f"<Batch {self.batch_code}>"

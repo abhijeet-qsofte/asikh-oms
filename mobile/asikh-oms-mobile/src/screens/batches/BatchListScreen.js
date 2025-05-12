@@ -16,18 +16,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { theme } from '../../constants/theme';
 import { TOKEN_KEY } from '../../constants/config';
-import { getBatches } from '../../store/slices/batchSlice';
+import { getBatches, getBatchWeightDetails } from '../../store/slices/batchSlice';
 
 export default function BatchListScreen({ navigation }) {
   const dispatch = useDispatch();
-  const { batches, loading, error } = useSelector((state) => state.batches);
-  const { isAuthenticated, user, token } = useSelector((state) => state.auth);
+  const { batches, loading, pagination, weightDetails, error } = useSelector((state) => state.batches);
+  const { isAuthenticated, token } = useSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
   
   // Load batches on component mount
   useEffect(() => {
     console.log('BatchListScreen mounted, loading batches...');
-    console.log('Authentication state:', { isAuthenticated, userId: user?.id });
+    console.log('Authentication state:', { isAuthenticated });
     console.log('Auth token available:', !!token);
     
     // Check if user is authenticated before loading batches
@@ -54,22 +54,66 @@ export default function BatchListScreen({ navigation }) {
   }, [isAuthenticated, token]);
   
   // Load batches from API
-  const loadBatches = () => {
+  const loadBatches = async () => {
     console.log('Dispatching getBatches action...');
-    dispatch(getBatches({ page: 1, page_size: 20 }))
-      .then(result => {
-        console.log('getBatches result:', result);
-      })
-      .catch(error => {
-        console.error('getBatches error:', error);
-      });
+    try {
+      const result = await dispatch(getBatches({ page: 1, page_size: 20 }));
+      console.log('getBatches result:', result);
+      
+      // For each delivered or closed batch, fetch weight details
+      if (result && result.payload && result.payload.batches) {
+        const deliveredOrClosedBatches = result.payload.batches.filter(
+          batch => batch.status === 'delivered' || batch.status === 'closed'
+        );
+        
+        console.log(`Found ${deliveredOrClosedBatches.length} delivered/closed batches`);
+        
+        // Use Promise.all to fetch all weight details in parallel
+        if (deliveredOrClosedBatches.length > 0) {
+          const weightDetailsPromises = deliveredOrClosedBatches.map(batch => {
+            console.log(`Fetching weight details for batch ${batch.id}`);
+            return dispatch(getBatchWeightDetails(batch.id));
+          });
+          
+          const weightDetailsResults = await Promise.all(weightDetailsPromises);
+          console.log('All weight details fetched:', weightDetailsResults);
+        }
+      }
+    } catch (error) {
+      console.error('getBatches error:', error);
+    }
   };
   
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    await dispatch(getBatches({ page: 1, page_size: 20 }));
-    setRefreshing(false);
+    try {
+      const result = await dispatch(getBatches({ page: 1, page_size: 20 }));
+      
+      // For each delivered or closed batch, fetch weight details
+      if (result && result.payload && result.payload.batches) {
+        const deliveredOrClosedBatches = result.payload.batches.filter(
+          batch => batch.status === 'delivered' || batch.status === 'closed'
+        );
+        
+        console.log(`Found ${deliveredOrClosedBatches.length} delivered/closed batches on refresh`);
+        
+        // Use Promise.all to fetch all weight details in parallel
+        if (deliveredOrClosedBatches.length > 0) {
+          const weightDetailsPromises = deliveredOrClosedBatches.map(batch => {
+            console.log(`Fetching weight details for batch ${batch.id} on refresh`);
+            return dispatch(getBatchWeightDetails(batch.id));
+          });
+          
+          const weightDetailsResults = await Promise.all(weightDetailsPromises);
+          console.log('All weight details fetched on refresh:', weightDetailsResults);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing batches:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
   
   // Navigate to batch details
@@ -96,6 +140,8 @@ export default function BatchListScreen({ navigation }) {
         return '#FF9800'; // Orange
       case 'delivered':
         return '#4CAF50'; // Green
+      case 'closed':
+        return '#673AB7'; // Purple
       case 'cancelled':
         return '#F44336'; // Red
       default:
@@ -110,7 +156,26 @@ export default function BatchListScreen({ navigation }) {
   };
   
   // Render each batch item
-  const renderBatchItem = ({ item }) => (
+  const renderBatchItem = ({ item }) => {
+    console.log(`Rendering batch item: ${item.id}`, item);
+    
+    // Find weight details for this batch
+    let batchWeightDetails = null;
+    if (weightDetails && item.id) {
+      batchWeightDetails = weightDetails[item.id];
+      console.log(`Weight details for batch ${item.id}:`, batchWeightDetails);
+    } else {
+      console.log(`No weight details found for batch ${item.id}`);
+    }
+    
+    // Use weight details from Redux store if available, otherwise use batch data
+    const weightDifferential = batchWeightDetails ? batchWeightDetails.total_weight_differential : item.weight_differential;
+    const weightLossPercentage = batchWeightDetails ? batchWeightDetails.weight_loss_percentage : item.weight_loss_percentage;
+    
+    console.log(`Weight differential for batch ${item.id}: ${weightDifferential}`);
+    console.log(`Weight loss percentage for batch ${item.id}: ${weightLossPercentage}`);
+    
+    return (
     <TouchableOpacity onPress={() => handleBatchPress(item.id)}>
       <Card style={styles.card}>
         <Card.Content>
@@ -134,9 +199,13 @@ export default function BatchListScreen({ navigation }) {
             <Text style={styles.cardText}>Crates: {item.total_crates || 0}</Text>
           </View>
           
-          {item.status === 'delivered' && (
+          {(item.status === 'delivered' || item.status === 'closed') && (
             <View style={styles.cardRow}>
-              <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.success} />
+              <Ionicons 
+                name={item.status === 'closed' ? "checkmark-done-circle-outline" : "checkmark-circle-outline"} 
+                size={18} 
+                color={item.status === 'closed' ? theme.colors.primary : theme.colors.success} 
+              />
               <Text style={styles.cardText}>
                 Reconciliation: {item.reconciliation_status || '0/0 (0%)'}
               </Text>
@@ -147,6 +216,23 @@ export default function BatchListScreen({ navigation }) {
             <Ionicons name="scale-outline" size={18} color={theme.colors.primary} />
             <Text style={styles.cardText}>Weight: {item.total_weight || 0} kg</Text>
           </View>
+          
+          {(item.status === 'delivered' || item.status === 'closed') && (
+            <View style={styles.cardRow}>
+              <Ionicons 
+                name={parseFloat(weightDifferential || 0) >= 0 ? "trending-up-outline" : "trending-down-outline"} 
+                size={18} 
+                color={parseFloat(weightDifferential || 0) >= 0 ? theme.colors.success : theme.colors.error} 
+              />
+              <Text style={[styles.cardText, {
+                color: parseFloat(weightDifferential || 0) >= 0 ? theme.colors.success : theme.colors.error
+              }]}>
+                Weight Diff: {weightDifferential !== null && weightDifferential !== undefined ? parseFloat(weightDifferential).toFixed(2) : '0.00'} kg
+                {weightLossPercentage !== null && weightLossPercentage !== undefined ? 
+                  ` (${Math.abs(parseFloat(weightLossPercentage)).toFixed(2)}% ${parseFloat(weightDifferential || 0) < 0 ? 'loss' : 'gain'})` : ''}
+              </Text>
+            </View>
+          )}
           
           <View style={styles.cardRow}>
             <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
@@ -183,6 +269,7 @@ export default function BatchListScreen({ navigation }) {
       </Card>
     </TouchableOpacity>
   );
+  }
   
   // Render empty state
   const renderEmpty = () => (

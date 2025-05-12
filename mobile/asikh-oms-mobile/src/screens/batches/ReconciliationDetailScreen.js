@@ -1,43 +1,44 @@
 // src/screens/batches/ReconciliationDetailScreen.js
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
-  ScrollView,
   Text,
-  TouchableOpacity,
   Alert,
+  ScrollView,
   ActivityIndicator,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Image
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { Card, Title, Paragraph, Divider, Chip, Button as PaperButton } from 'react-native-paper';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { Card, Title, Paragraph, Divider, Chip, Button as PaperButton, IconButton } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import Button from '../../components/Button';
+import { getBatchById, getBatchStats, closeBatch, getReconciliationStatus, getBatchWeightDetails } from '../../store/slices/batchSlice';
 import { theme } from '../../constants/theme';
 import apiClient from '../../api/client';
-import batchService from '../../api/batchService';
-import {
-  getBatchById,
-  getBatchStats,
-  closeBatch
-} from '../../store/slices/batchSlice';
 
-export default function ReconciliationDetailScreen({ route, navigation }) {
+const ReconciliationDetailScreen = () => {
   const dispatch = useDispatch();
-  const { currentBatch: reduxBatch, batchStats, loading, error } = useSelector((state) => state.batches);
+  const navigation = useNavigation();
+  const route = useRoute();
   
-  // Local state for batch data that will be updated with reconciliation info
+  const { currentBatch: batch, loading, error } = useSelector((state) => state.batches);
   const [localBatch, setLocalBatch] = useState({});
   
   const [hasPermission, setHasPermission] = useState(null);
-  const [scanMode, setScanMode] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [scannedCrates, setScannedCrates] = useState([]);
   const [manualQrCode, setManualQrCode] = useState('');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [crateWeight, setCrateWeight] = useState('');
+  const [cratePhoto, setCratePhoto] = useState(null);
+  const [currentQrCode, setCurrentQrCode] = useState('');
   
   // Get batch ID from route params
   const { batchId } = route.params || {};
@@ -60,71 +61,150 @@ export default function ReconciliationDetailScreen({ route, navigation }) {
     }
   }, [batchId, dispatch]);
   
-  // Sync Redux batch data to local state
+  // Update local batch state when batch data changes
   useEffect(() => {
-    if (reduxBatch && reduxBatch.id) {
-      setLocalBatch(prevState => ({
-        ...prevState,
-        ...reduxBatch
-      }));
+    if (batch) {
+      console.log('Raw batch data:', JSON.stringify(batch, null, 2));
+      
+      // Get batch details from API to ensure we have complete data
+      const fetchBatchDetails = async () => {
+        try {
+          // Make a direct API call to get full batch details
+          const response = await apiClient.get(`/api/batches/${batchId}`);
+          const detailedBatch = response.data;
+          
+          console.log('Detailed batch data:', JSON.stringify(detailedBatch, null, 2));
+          
+          // Extract farm and packhouse information from location fields
+          let farmName = 'Unknown';
+          let packhouseName = 'Unknown';
+          
+          // In the batch API response, from_location is the farm and to_location is the packhouse
+          if (detailedBatch.from_location_name) {
+            farmName = detailedBatch.from_location_name;
+          } else if (detailedBatch.from_location) {
+            farmName = `Farm ID: ${detailedBatch.from_location}`;
+          }
+          
+          if (detailedBatch.to_location_name) {
+            packhouseName = detailedBatch.to_location_name;
+          } else if (detailedBatch.to_location) {
+            packhouseName = `Packhouse ID: ${detailedBatch.to_location}`;
+          }
+          
+          // Update local state with complete information
+          setLocalBatch(prevState => ({
+            ...prevState,
+            ...detailedBatch,
+            farm_name: farmName,
+            packhouse_name: packhouseName,
+          }));
+          
+        } catch (error) {
+          console.error('Error fetching detailed batch info:', error);
+          
+          // Fallback to using the batch data from Redux
+          // Use from_location_name as farm and to_location_name as packhouse
+          const farmName = batch.from_location_name || 
+            (batch.from_location ? `Farm ID: ${batch.from_location}` : 'Unknown');
+            
+          const packhouseName = batch.to_location_name || 
+            (batch.to_location ? `Packhouse ID: ${batch.to_location}` : 'Unknown');
+          
+          setLocalBatch(prevState => ({
+            ...prevState,
+            ...batch,
+            farm_name: farmName,
+            packhouse_name: packhouseName,
+          }));
+        }
+      };
+      
+      fetchBatchDetails();
     }
-  }, [reduxBatch]);
+  }, [batch, batchId, apiClient]);
   
-  // State for reconciliation status
-  const [reconciliationStatus, setReconciliationStatus] = useState(null);
-  
-  // Fetch reconciliation status
+  // Fetch reconciliation status and weight details
   const fetchReconciliationStatus = async () => {
-    if (!batchId || !localBatch.id) return;
-    
-    // Only delivered batches can be reconciled
-    if (localBatch.status !== 'delivered') {
-      // Set default values for non-delivered batches
-      setLocalBatch(prevState => ({
-        ...prevState,
-        reconciliation_status: 'Not applicable',
-        is_fully_reconciled: false,
-        reconciled_count: 0
-      }));
-      return;
-    }
-    
     try {
-      const data = await batchService.getReconciliationStatus(batchId);
-      console.log('Reconciliation status response:', data);
-      setReconciliationStatus(data);
+      console.log(`Fetching reconciliation status and weight details for batch ${batchId}`);
       
-      // Update local batch state with reconciliation info
+      // Get batch details if not already loaded
+      if (!localBatch.id) {
+        const batchResponse = await dispatch(getBatchById(batchId)).unwrap();
+        setLocalBatch(batchResponse);
+      }
+      
+      // Get reconciliation status
+      const reconciliationResponse = await dispatch(getReconciliationStatus(batchId)).unwrap();
+      console.log('Reconciliation status response:', reconciliationResponse);
+      
+      // Get detailed weight information
+      const weightDetailsResponse = await dispatch(getBatchWeightDetails(batchId)).unwrap();
+      console.log('Weight details response:', weightDetailsResponse);
+      
+      // Get reconciled crates count
+      const reconciledCrates = reconciliationResponse.reconciled_crates || 0;
+      
+      // Use total_crates from the reconciliation status if available, otherwise from the batch details
+      const totalCrates = reconciliationResponse.total_crates || localBatch.total_crates || 0;
+      
+      const missingCrates = reconciliationResponse.missing_crates || (totalCrates - reconciledCrates);
+      const percentage = totalCrates > 0 ? Math.round((reconciledCrates / totalCrates) * 100) : 0;
+      
+      console.log('Reconciliation counts:', { 
+        reconciledCrates, 
+        totalCrates, 
+        missingCrates, 
+        percentage, 
+        isFullyReconciled: reconciledCrates === totalCrates && totalCrates > 0 
+      });
+      
+      // Extract weight information from the detailed weight endpoint
+      const totalOriginalWeight = weightDetailsResponse.total_original_weight || 0;
+      const totalReconciledWeight = weightDetailsResponse.total_reconciled_weight || 0;
+      const totalWeightDifferential = weightDetailsResponse.total_weight_differential || 0;
+      const weightLossPercentage = weightDetailsResponse.weight_loss_percentage || 0;
+      
+      console.log('Weight information from details endpoint:', {
+        totalOriginalWeight,
+        totalReconciledWeight,
+        totalWeightDifferential,
+        weightLossPercentage
+      });
+      
       setLocalBatch(prevState => ({
         ...prevState,
-        reconciliation_status: data.reconciliation_status,
-        is_fully_reconciled: data.is_fully_reconciled,
-        reconciled_count: data.reconciled_count || 0,
-        total_crates: data.total_crates || prevState.total_crates || 0
+        reconciled_count: reconciledCrates,
+        total_crates: totalCrates,
+        missing_crates: missingCrates,
+        reconciliation_status: `${reconciledCrates}/${totalCrates} crates (${percentage}%)`,
+        is_fully_reconciled: reconciledCrates === totalCrates && totalCrates > 0,
+        total_original_weight: totalOriginalWeight,
+        total_reconciled_weight: totalReconciledWeight,
+        total_weight_differential: totalWeightDifferential,
+        weight_loss_percentage: weightLossPercentage,
+        crate_details: weightDetailsResponse.crate_details || []
       }));
+      
+      console.log('Batch state updated with reconciliation and weight details');
     } catch (error) {
-      console.error('Error fetching reconciliation status:', error);
+      console.error('Error fetching reconciliation status or weight details:', error);
       
-      // Set fallback values in case of error
-      setLocalBatch(prevState => ({
-        ...prevState,
-        reconciliation_status: '0/0 crates (0%)',
-        is_fully_reconciled: false
-      }));
-      
-      // Don't show alert for every failed status check to avoid spamming the user
-      // Only show an error if this is the first load (reconciliationStatus is null)
-      if (reconciliationStatus === null) {
-        Alert.alert(
-          'Error',
-          'Failed to fetch reconciliation status. Please try again later.',
-          [{ text: 'OK' }]
-        );
+      // If we fail to get the data, use the batch data for total crates
+      if (localBatch.total_crates) {
+        setLocalBatch(prevState => ({
+          ...prevState,
+          reconciled_count: 0,
+          total_crates: prevState.total_crates,
+          missing_crates: prevState.total_crates,
+          reconciliation_status: `0/${prevState.total_crates} crates (0%)`,
+          is_fully_reconciled: false,
+        }));
       }
     }
   };
   
-  // Refresh reconciliation status every 5 seconds
   useEffect(() => {
     // Initial fetch
     fetchReconciliationStatus();
@@ -149,40 +229,73 @@ export default function ReconciliationDetailScreen({ route, navigation }) {
   };
   
   // Handle barcode scan
-  const handleBarCodeScanned = ({ type, data }) => {
-    setScanMode(false);
-    
-    // Check if this crate has already been scanned
-    if (scannedCrates.includes(data)) {
-      Alert.alert('Already Scanned', `Crate ${data} has already been scanned.`);
-      return;
-    }
-    
-    // Add crate to reconciled list
+  const handleBarCodeScanned = ({ data }) => {
+    setScanning(false);
+    setCurrentQrCode(data);
+    // Show weight entry and photo capture UI instead of immediately reconciling
     Alert.alert(
       'Crate Scanned',
-      `Do you want to reconcile crate ${data}?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Reconcile',
-          onPress: () => reconcileCrate(data),
-        },
-      ]
+      `QR Code: ${data}\n\nPlease take a photo and enter the weight of this crate before reconciling.`,
+      [{ text: 'OK' }]
     );
   };
   
+  // Handle taking a photo
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera permission is required to take photos');
+      return;
+    }
+    
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+      
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setCratePhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+  
+  // Handle weight change
+  const handleWeightChange = (text) => {
+    // Only allow numbers and decimal point
+    const filteredText = text.replace(/[^0-9.]/g, '');
+    setCrateWeight(filteredText);
+  };
+  
   // Reconcile a crate
-  const reconcileCrate = async (qrCode) => {
+  const reconcileCrate = async (qrCode, photoUri, weight) => {
+    // Validate required fields
+    if (!photoUri) {
+      Alert.alert('Photo Required', 'Please take a photo of the crate before reconciling.');
+      return;
+    }
+    
+    if (!weight) {
+      Alert.alert('Weight Required', 'Please enter the weight of the crate before reconciling.');
+      return;
+    }
+    
     try {
       console.log(`Reconciling crate ${qrCode} with batch ${batchId}`);
       
-      // Call API to reconcile crate
+      // Skip photo upload for now since the endpoint doesn't exist
+      // We'll just proceed with the reconciliation without the photo
+      
+      // Call API to reconcile crate with weight only
       const response = await apiClient.post(`/api/batches/${batchId}/reconcile`, {
-        qr_code: qrCode
+        qr_code: qrCode,
+        weight: parseFloat(weight)
       });
       
       console.log('Reconciliation response:', response.data);
@@ -190,415 +303,570 @@ export default function ReconciliationDetailScreen({ route, navigation }) {
       // Add to scanned crates list
       setScannedCrates([...scannedCrates, qrCode]);
       
+      // Reset photo and weight after successful reconciliation
+      setCratePhoto(null);
+      setCrateWeight('');
+      setCurrentQrCode('');
+      
       // Update local state immediately for better UI responsiveness
       const reconciliationStats = response.data.reconciliation_stats;
       if (reconciliationStats) {
         setLocalBatch(prevState => ({
           ...prevState,
-          reconciled_count: reconciliationStats.reconciled_crates || prevState.reconciled_count || 0,
-          total_crates: reconciliationStats.total_crates || prevState.total_crates || 0,
+          reconciled_count: reconciliationStats.reconciled_crates,
+          total_crates: reconciliationStats.total_crates,
+          missing_crates: reconciliationStats.missing_crates,
           reconciliation_status: `${reconciliationStats.reconciled_crates}/${reconciliationStats.total_crates} crates (${Math.round(reconciliationStats.reconciliation_percentage)}%)`,
-          is_fully_reconciled: reconciliationStats.reconciled_crates === reconciliationStats.total_crates
+          is_fully_reconciled: reconciliationStats.reconciled_crates === reconciliationStats.total_crates,
+          total_original_weight: reconciliationStats.total_original_weight,
+          total_reconciled_weight: reconciliationStats.total_reconciled_weight,
+          total_weight_differential: reconciliationStats.total_weight_differential,
+          weight_loss_percentage: reconciliationStats.weight_loss_percentage
         }));
       }
       
-      // Also refresh full reconciliation status from server
-      fetchReconciliationStatus();
-      
-      Alert.alert('Success', `Crate ${qrCode} has been reconciled.`);
+      // Show success message
+      Alert.alert('Success', `Crate ${qrCode} has been reconciled successfully.`);
     } catch (error) {
       console.error('Error reconciling crate:', error);
-      console.error('Error details:', error.response?.data || error.message);
-      
-      // Show error message to user
-      Alert.alert(
-        'Error',
-        error.response?.data?.detail || 'Failed to reconcile crate. Please try again.'
-      );
+      Alert.alert('Error', error.response?.data?.detail || 'Failed to reconcile crate. Please try again.');
     }
   };
   
   // Handle closing the batch
   const handleCloseBatch = () => {
-    // Check if all crates are reconciled
-    if (localBatch.reconciled_count < localBatch.total_crates) {
+    // Check if any crates have been reconciled
+    if (!localBatch.reconciled_count || localBatch.reconciled_count === 0) {
       Alert.alert(
         'Cannot Close Batch',
-        `All crates must be reconciled before closing the batch. Currently ${localBatch.reconciled_count}/${localBatch.total_crates} crates are reconciled.`,
+        'You must reconcile at least one crate before closing the batch.',
         [{ text: 'OK' }]
       );
       return;
     }
     
+    // Check if all crates are reconciled
+    if (localBatch.reconciled_count < localBatch.total_crates) {
+      // Ask for confirmation if some but not all crates are reconciled
+      Alert.alert(
+        'Incomplete Reconciliation',
+        `Only ${localBatch.reconciled_count} out of ${localBatch.total_crates} crates have been reconciled. Are you sure you want to close this batch with missing crates?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Close Anyway', 
+            style: 'destructive',
+            onPress: () => completeCloseBatch()
+          }
+        ]
+      );
+      return;
+    }
+    
+    // All crates are reconciled, confirm final closure
     Alert.alert(
-      'Close Batch',
-      'Are you sure you want to close this batch? This action cannot be undone.',
+      'Complete Reconciliation',
+      'All crates have been reconciled. Would you like to complete the reconciliation process?',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Close Batch',
-          onPress: () => {
-            // Update local state immediately for better UI responsiveness
-            setLocalBatch(prevState => ({
-              ...prevState,
-              status: 'closed',
-              is_fully_reconciled: true
-            }));
-            
-            dispatch(closeBatch(batchId))
-              .unwrap()
-              .then(() => {
-                Alert.alert('Success', 'Batch has been closed successfully');
-                navigation.goBack();
-              })
-              .catch((error) => {
-                // Revert local state if there's an error
-                setLocalBatch(prevState => ({
-                  ...prevState,
-                  status: 'delivered'
-                }));
-                Alert.alert('Error', error.detail || 'Failed to close batch');
-              });
-          },
+          text: 'Complete',
+          onPress: () => completeCloseBatch(),
         },
       ]
     );
   };
   
+  // Function to handle the actual batch closure
+  const completeCloseBatch = () => {
+    // Update local state immediately for better UI responsiveness
+    setLocalBatch(prevState => ({
+      ...prevState,
+      status: 'closed',
+      is_fully_reconciled: true
+    }));
+    
+    dispatch(closeBatch(batchId))
+      .unwrap()
+      .then(() => {
+        Alert.alert('Success', 'Batch has been closed successfully');
+        navigation.goBack();
+      })
+      .catch((error) => {
+        // Revert local state if there's an error
+        setLocalBatch(prevState => ({
+          ...prevState,
+          status: 'delivered'
+        }));
+        Alert.alert('Error', error.detail || 'Failed to close batch');
+      });
+  };
+  
   // Render loading state
-  if (loading) {
+  if (loading && !localBatch.id) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading reconciliation details...</Text>
+        <Text style={styles.loadingText}>Loading batch details...</Text>
       </View>
     );
   }
   
   // Render error state
-  if (error) {
+  if (error && !localBatch.id) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-        <Text style={styles.errorText}>
-          {error.detail || error.message || 'Failed to load reconciliation details'}
-        </Text>
-        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
-          Go Back
-        </Button>
-      </View>
-    );
-  }
-  
-  // Render if no batch found
-  if (!localBatch.id) {
-    return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="help-circle-outline" size={48} color={theme.colors.placeholder} />
-        <Text style={styles.errorText}>Batch not found</Text>
-        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
-          Go Back
-        </Button>
-      </View>
-    );
-  }
-  
-  // Check if batch is in valid state for reconciliation
-  if (localBatch.status !== 'delivered') {
-    return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="information-circle-outline" size={48} color={theme.colors.warning} />
-        <Text style={styles.errorText}>
-          Batch must be in 'delivered' status to perform reconciliation.
-          Current status: {localBatch.status?.replace('_', ' ')}
-        </Text>
-        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
-          Go Back
-        </Button>
-      </View>
-    );
-  }
-  
-  // Render scanner if in scan mode
-  if (scanMode) {
-    return (
-      <View style={styles.scannerContainer}>
-        {hasPermission === null ? (
-          <Text>Requesting camera permission...</Text>
-        ) : hasPermission === false ? (
-          <Text>No access to camera</Text>
-        ) : (
-          <>
-            <BarCodeScanner
-              onBarCodeScanned={handleBarCodeScanned}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.scannerOverlay}>
-              <Text style={styles.scannerText}>Scan Crate QR Code</Text>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => setScanMode(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+        <Text style={styles.errorText}>Error loading batch details</Text>
+        <Text style={styles.errorMessage}>{error}</Text>
+        <Button title="Go Back" onPress={() => navigation.goBack()} />
       </View>
     );
   }
   
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Batch Reconciliation</Text>
-        <Chip
-          style={[styles.statusChip, { backgroundColor: '#2196F3' }]}
-          textStyle={styles.statusText}
-        >
-          ARRIVED
-        </Chip>
-      </View>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Title style={styles.cardTitle}>Batch Information</Title>
-          <Divider style={styles.divider} />
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Batch Code:</Text>
-            <Text style={styles.infoValue}>{localBatch.batch_code}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Total Crates:</Text>
-            <Text style={styles.infoValue}>{localBatch.total_crates || 0}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Reconciled Crates:</Text>
-            <Text style={styles.infoValue}>{localBatch.reconciled_count || 0}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Remaining:</Text>
-            <Text style={styles.infoValue}>
-              {(localBatch.total_crates || 0) - (localBatch.reconciled_count || 0)}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView style={styles.scrollView}>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.headerContainer}>
+              <Title style={styles.title}>Batch Reconciliation</Title>
+              <Chip
+                mode="outlined"
+                style={[styles.statusChip, { backgroundColor: '#2196F3' }]}
+              >
+                ARRIVED
+              </Chip>
+            </View>
+            
+            <Divider style={styles.divider} />
+            
+            <Title style={styles.sectionTitle}>Batch Information</Title>
+            
+            <View style={styles.infoContainer}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Batch Code:</Text>
+                <Text style={styles.infoValue}>{localBatch.batch_code || 'N/A'}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Farm:</Text>
+                <Text style={styles.infoValue}>{localBatch.farm_name || 'N/A'}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Packhouse:</Text>
+                <Text style={styles.infoValue}>{localBatch.packhouse_name || 'N/A'}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Created:</Text>
+                <Text style={styles.infoValue}>
+                  {localBatch.created_at ? new Date(localBatch.created_at).toLocaleString() : 'N/A'}
+                </Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Total Crates:</Text>
+                <Text style={styles.infoValue}>{localBatch.total_crates || 0}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Reconciled:</Text>
+                <Text style={styles.infoValue}>{localBatch.reconciled_count || 0}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Remaining:</Text>
+                <Text style={styles.infoValue}>{localBatch.missing_crates || 0}</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Reconciliation:</Text>
+                <Ionicons 
+                  name={localBatch.is_fully_reconciled ? 'checkmark-circle' : 'time-outline'} 
+                  size={24} 
+                  color={getReconciliationColor(localBatch.reconciled_count, localBatch.total_crates)} 
+                  style={styles.reconciliationIcon} 
+                />
+                <Text 
+                  style={[styles.infoValue, {
+                    color: getReconciliationColor(localBatch.reconciled_count, localBatch.total_crates)
+                  }]}
+                >
+                  {localBatch.reconciliation_status || '0/0 crates (0%)'}
+                </Text>
+              </View>
+              
+              <Divider style={[styles.divider, { marginVertical: 10 }]} />
+              
+              <Text style={styles.sectionTitle}>Weight Information</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Original Weight:</Text>
+                <Text style={styles.infoValue}>{localBatch.total_original_weight || 0} kg</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Reconciled Weight:</Text>
+                <Text style={styles.infoValue}>{localBatch.total_reconciled_weight || 0} kg</Text>
+              </View>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Weight Differential:</Text>
+                <Text style={[styles.infoValue, {
+                  color: (localBatch.total_weight_differential || 0) < 0 ? '#F44336' : '#4CAF50'
+                }]}>
+                  {localBatch.total_weight_differential || 0} kg
+                  {localBatch.total_weight_differential !== 0 && ` (${Math.abs(localBatch.weight_loss_percentage || 0)}% ${(localBatch.total_weight_differential || 0) < 0 ? 'loss' : 'gain'})`}
+                </Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+        
+        {localBatch.crate_details && localBatch.crate_details.length > 0 && (
+          <Card style={styles.card}>
+            <Card.Content>
+              <Title style={styles.cardTitle}>Crate Weight Details</Title>
+              <Divider style={styles.divider} />
+              
+              <ScrollView horizontal={true} style={styles.tableContainer}>
+                <View>
+                  {/* Table Header */}
+                  <View style={styles.tableRow}>
+                    <Text style={[styles.tableHeader, { width: 120 }]}>QR Code</Text>
+                    <Text style={[styles.tableHeader, { width: 100 }]}>Original (kg)</Text>
+                    <Text style={[styles.tableHeader, { width: 100 }]}>Reconciled (kg)</Text>
+                    <Text style={[styles.tableHeader, { width: 100 }]}>Differential (kg)</Text>
+                  </View>
+                  
+                  {/* Table Rows */}
+                  {localBatch.crate_details.map((crate, index) => (
+                    <View key={crate.crate_id} style={[styles.tableRow, index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd]}>
+                      <Text style={[styles.tableCell, { width: 120 }]}>{crate.qr_code}</Text>
+                      <Text style={[styles.tableCell, { width: 100 }]}>{crate.original_weight || 0}</Text>
+                      <Text style={[styles.tableCell, { width: 100 }]}>{crate.reconciled_weight || 'N/A'}</Text>
+                      <Text style={[styles.tableCell, { width: 100, color: (crate.weight_differential || 0) < 0 ? theme.colors.error : theme.colors.success }]}>
+                        {crate.weight_differential || 0}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </Card.Content>
+          </Card>
+        )}
+        
+        <Card style={styles.card}>
+          <Card.Content>
+            <Title style={styles.cardTitle}>Reconciliation Actions</Title>
+            <Divider style={styles.divider} />
+            
+            <Text style={styles.instructions}>
+              Scan each crate's QR code to reconcile it with this batch. Once all crates are reconciled,
+              you can close the batch to complete the reconciliation process.
             </Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Reconciliation:</Text>
-            <View style={styles.reconciliationContainer}>
-              <Ionicons 
-                name={localBatch.is_fully_reconciled ? "checkmark-circle" : "time-outline"} 
-                size={18} 
-                color={localBatch.is_fully_reconciled ? theme.colors.success : theme.colors.warning} 
-                style={styles.reconciliationIcon} 
-              />
-              <Text 
-                style={[styles.infoValue, {
-                  color: getReconciliationColor(localBatch.reconciled_count, localBatch.total_crates)
-                }]}
-              >
-                {localBatch.reconciliation_status || '0/0 crates (0%)'}
-              </Text>
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Title style={styles.cardTitle}>Reconciliation Actions</Title>
-          <Divider style={styles.divider} />
-          
-          <Text style={styles.instructions}>
-            Scan each crate's QR code to reconcile it with this batch. Once all crates are reconciled,
-            you can close the batch to complete the reconciliation process.
-          </Text>
-          
-          <Button
-            mode="contained"
-            icon="qrcode-scan"
-            onPress={() => setScanMode(true)}
-            style={styles.scanButton}
-          >
-            Scan Crate QR Code
-          </Button>
-          
-          <Button
-            mode="outlined"
-            icon="keyboard"
-            onPress={() => setShowManualEntry(!showManualEntry)}
-            style={styles.manualEntryButton}
-          >
-            {showManualEntry ? 'Hide Manual Entry' : 'Manual QR Entry (Testing)'}
-          </Button>
-          
-          {showManualEntry && (
-            <View style={styles.manualEntryContainer}>
-              <Text style={styles.manualEntryLabel}>Enter QR Code Manually:</Text>
-              <TextInput
-                style={styles.manualEntryInput}
-                value={manualQrCode}
-                onChangeText={setManualQrCode}
-                placeholder="Enter crate QR code"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Button
-                mode="contained"
-                onPress={() => {
-                  if (manualQrCode.trim()) {
-                    reconcileCrate(manualQrCode.trim());
-                    setManualQrCode('');
-                  } else {
-                    Alert.alert('Error', 'Please enter a valid QR code');
-                  }
-                }}
-                style={styles.submitButton}
-                disabled={!manualQrCode.trim()}
-              >
-                Submit
-              </Button>
-            </View>
-          )}
-          
-          {localBatch.is_fully_reconciled ? (
-            <View style={styles.completedContainer}>
-              <Text style={styles.completedText}>
-                All crates have been reconciled!
-              </Text>
+            
+            {scanning ? (
+              <View style={styles.scannerContainer}>
+                <BarCodeScanner
+                  onBarCodeScanned={handleBarCodeScanned}
+                  style={styles.scanner}
+                />
+                <Button
+                  mode="contained"
+                  icon="close"
+                  onPress={() => setScanning(false)}
+                  style={styles.cancelButton}
+                >
+                  Cancel Scan
+                </Button>
+              </View>
+            ) : currentQrCode ? (
+              <View style={styles.reconciliationContainer}>
+                <Text style={styles.qrCodeText}>QR Code: {currentQrCode}</Text>
+                
+                <View style={styles.photoContainer}>
+                  <Text style={styles.sectionTitle}>Crate Photo</Text>
+                  {cratePhoto ? (
+                    <View style={styles.photoPreviewContainer}>
+                      <Image source={{ uri: cratePhoto }} style={styles.photoPreview} />
+                      <Button 
+                        mode="outlined" 
+                        icon="camera" 
+                        onPress={handleTakePhoto}
+                        style={styles.retakeButton}
+                      >
+                        Retake Photo
+                      </Button>
+                    </View>
+                  ) : (
+                    <Button 
+                      mode="contained" 
+                      icon="camera" 
+                      onPress={handleTakePhoto}
+                      style={styles.photoButton}
+                    >
+                      Take Photo
+                    </Button>
+                  )}
+                </View>
+                
+                <View style={styles.weightContainer}>
+                  <Text style={styles.sectionTitle}>Crate Weight (kg)</Text>
+                  <TextInput
+                    style={styles.weightInput}
+                    value={crateWeight}
+                    onChangeText={handleWeightChange}
+                    keyboardType="numeric"
+                    placeholder="Enter weight in kg"
+                  />
+                </View>
+                
+                <View style={styles.buttonContainer}>
+                  <Button
+                    mode="outlined"
+                    icon="close"
+                    onPress={() => {
+                      setCurrentQrCode('');
+                      setCratePhoto(null);
+                      setCrateWeight('');
+                    }}
+                    style={styles.cancelReconcileButton}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    mode="contained"
+                    icon="check"
+                    onPress={() => reconcileCrate(currentQrCode, cratePhoto, crateWeight)}
+                    style={styles.reconcileButton}
+                    disabled={!cratePhoto || !crateWeight}
+                  >
+                    Reconcile Crate
+                  </Button>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.actionsContainer}>
+                <Button
+                  mode="contained"
+                  icon="qrcode-scan"
+                  onPress={() => setScanning(true)}
+                  style={styles.scanButton}
+                >
+                  Scan QR Code
+                </Button>
+                
+                <Button
+                  mode="outlined"
+                  icon="form-textbox"
+                  onPress={() => setShowManualEntry(!showManualEntry)}
+                  style={styles.manualButton}
+                >
+                  {showManualEntry ? 'Hide Manual Entry' : 'Manual QR Entry'}
+                </Button>
+              </View>
+            )}
+            
+            {showManualEntry && (
+              <View style={styles.manualEntryContainer}>
+                <Text style={styles.manualEntryLabel}>Enter QR Code Manually:</Text>
+                <TextInput
+                  style={styles.manualEntryInput}
+                  value={manualQrCode}
+                  onChangeText={setManualQrCode}
+                  placeholder="Enter crate QR code"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    if (manualQrCode.trim()) {
+                      setCurrentQrCode(manualQrCode.trim());
+                      setManualQrCode('');
+                    } else {
+                      Alert.alert('Error', 'Please enter a valid QR code');
+                    }
+                  }}
+                  style={styles.submitButton}
+                  disabled={!manualQrCode.trim()}
+                >
+                  Submit
+                </Button>
+              </View>
+            )}
+            
+            {localBatch.is_fully_reconciled ? (
+              <View style={styles.completedContainer}>
+                <Text style={styles.completedText}>
+                  All crates have been reconciled!
+                </Text>
+                <Button
+                  mode="contained"
+                  icon="check-circle"
+                  onPress={handleCloseBatch}
+                  style={[styles.closeButton, { backgroundColor: '#4CAF50' }]}
+                >
+                  Complete Reconciliation
+                </Button>
+              </View>
+            ) : (
               <Button
                 mode="contained"
                 icon="check-circle"
                 onPress={handleCloseBatch}
-                style={[styles.closeButton, { backgroundColor: '#4CAF50' }]}
+                style={styles.closeButton}
+                disabled={!localBatch.reconciled_count || localBatch.reconciled_count === 0}
               >
-                Complete Reconciliation
+                Close Batch
               </Button>
-            </View>
-          ) : (
-            <Button
-              mode="contained"
-              icon="check-circle"
-              onPress={handleCloseBatch}
-              style={styles.closeButton}
-              disabled={!localBatch.reconciliation_status || localBatch.reconciliation_status.includes('0%')}
-            >
-              Close Batch
-            </Button>
-          )}
-        </Card.Content>
-      </Card>
-      
-      <View style={styles.scannedContainer}>
-        <Title style={styles.scannedTitle}>Recently Scanned Crates</Title>
-        {scannedCrates.length === 0 ? (
-          <Text style={styles.noScannedText}>No crates scanned yet</Text>
-        ) : (
-          scannedCrates.map((crate, index) => (
-            <Chip
-              key={index}
-              style={styles.crateChip}
-              icon="check-circle"
-            >
-              {crate}
-            </Chip>
-          ))
-        )}
-      </View>
-    </ScrollView>
+            )}
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginBottom: 10,
+  },
+  tableContainer: {
+    marginVertical: 10,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    paddingVertical: 8,
+  },
+  tableRowEven: {
+    backgroundColor: '#f9f9f9',
+  },
+  tableRowOdd: {
+    backgroundColor: '#ffffff',
+  },
+  tableHeader: {
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    color: theme.colors.primary,
+  },
+  tableCell: {
+    paddingHorizontal: 8,
+  },
+  scrollView: {
+    flex: 1,
+    padding: 16,
+  },
+  card: {
+    marginBottom: 16,
+    elevation: 2,
+  },
+  headerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
   },
   statusChip: {
     height: 30,
   },
-  statusText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  card: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    elevation: 4,
-  },
-  cardTitle: {
-    fontSize: 18,
-    color: theme.colors.primary,
-  },
   divider: {
-    marginVertical: 8,
+    marginVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  infoContainer: {
+    marginTop: 8,
   },
   infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 6,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   infoLabel: {
-    fontSize: 16,
+    width: 120,
+    fontSize: 14,
+    fontWeight: 'bold',
     color: '#666',
-    flex: 1,
   },
   infoValue: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    flex: 2,
-    textAlign: 'right',
-  },
-  reconciliationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 2,
-    justifyContent: 'flex-end',
+    flex: 1,
+    fontSize: 14,
   },
   reconciliationIcon: {
     marginRight: 8,
   },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   instructions: {
-    fontSize: 16,
+    marginVertical: 12,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 16,
-    lineHeight: 22,
+  },
+  scannerContainer: {
+    height: 300,
+    marginVertical: 16,
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: 8,
+  },
+  scanner: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cancelButton: {
+    position: 'absolute',
+    bottom: 16,
+    alignSelf: 'center',
+    backgroundColor: theme.colors.error,
+  },
+  actionsContainer: {
+    marginVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   scanButton: {
-    marginVertical: 8,
-    backgroundColor: theme.colors.primary,
+    flex: 1,
+    marginRight: 8,
   },
-  manualEntryButton: {
-    marginVertical: 8,
+  manualButton: {
+    flex: 1,
+    marginLeft: 8,
   },
   manualEntryContainer: {
-    marginTop: 8,
-    padding: 12,
+    marginVertical: 16,
+    padding: 16,
     backgroundColor: '#f0f0f0',
     borderRadius: 8,
   },
   manualEntryLabel: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    fontWeight: 'bold',
     marginBottom: 8,
   },
   manualEntryInput: {
@@ -606,17 +874,68 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 4,
-    padding: 10,
-    fontSize: 16,
-    marginBottom: 12,
+    padding: 8,
+    marginBottom: 16,
   },
   submitButton: {
+    alignSelf: 'flex-end',
+  },
+  reconciliationContainer: {
+    marginVertical: 16,
+    padding: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
+  qrCodeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  photoContainer: {
+    marginBottom: 16,
+  },
+  photoPreviewContainer: {
+    alignItems: 'center',
     marginTop: 8,
-    backgroundColor: theme.colors.primary,
+  },
+  photoPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  photoButton: {
+    marginTop: 8,
+  },
+  retakeButton: {
+    marginTop: 8,
+  },
+  weightContainer: {
+    marginBottom: 16,
+  },
+  weightInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 4,
+    padding: 8,
+    marginTop: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  cancelReconcileButton: {
+    flex: 1,
+    marginRight: 8,
+  },
+  reconcileButton: {
+    flex: 1,
+    marginLeft: 8,
   },
   closeButton: {
-    marginVertical: 8,
-    backgroundColor: theme.colors.success,
+    marginTop: 16,
   },
   completedContainer: {
     backgroundColor: '#E8F5E9',
@@ -633,23 +952,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
   },
-  scannedContainer: {
-    margin: 16,
-  },
-  scannedTitle: {
-    fontSize: 18,
-    marginBottom: 8,
-  },
-  noScannedText: {
-    fontSize: 16,
-    color: '#666',
-    fontStyle: 'italic',
-    marginVertical: 8,
-  },
-  crateChip: {
-    marginVertical: 4,
-    backgroundColor: '#e0f2f1',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -659,7 +961,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.primary,
   },
   errorContainer: {
     flex: 1,
@@ -669,47 +971,17 @@ const styles = StyleSheet.create({
   },
   errorText: {
     marginTop: 16,
-    marginBottom: 24,
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  errorButton: {
-    backgroundColor: theme.colors.primary,
-  },
-  scannerContainer: {
-    flex: 1,
-    flexDirection: 'column',
-    justifyContent: 'center',
-  },
-  scannerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-  },
-  scannerText: {
-    color: 'white',
     fontSize: 18,
-    fontWeight: 'bold',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 50,
-  },
-  cancelButton: {
-    backgroundColor: 'rgba(255,255,255,0.8)',
-    padding: 15,
-    borderRadius: 5,
-    marginBottom: 50,
-  },
-  cancelButtonText: {
-    fontSize: 16,
     fontWeight: 'bold',
     color: theme.colors.error,
   },
+  errorMessage: {
+    marginTop: 8,
+    marginBottom: 24,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
 });
+
+export default ReconciliationDetailScreen;

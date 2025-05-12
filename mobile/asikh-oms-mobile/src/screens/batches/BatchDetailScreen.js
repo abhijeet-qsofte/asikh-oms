@@ -250,8 +250,9 @@ export default function BatchDetailScreen({ route, navigation }) {
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Transport Mode:</Text>
             <Text style={styles.infoValue}>
-              {currentBatch.transport_mode.charAt(0).toUpperCase() +
-                currentBatch.transport_mode.slice(1)}
+              {currentBatch.transport_mode ? 
+                (currentBatch.transport_mode.charAt(0).toUpperCase() + currentBatch.transport_mode.slice(1)) : 
+                'Not specified'}
             </Text>
           </View>
           

@@ -267,7 +267,7 @@ class BatchReconciliationManager:
         return result
     
     @staticmethod
-    def reconcile_crate(batch_id: str, crate_id: str, user_id: str, timestamp: str) -> bool:
+    def reconcile_crate(batch_id: str, crate_id: str, user_id: str, timestamp: str, photo_url: str = None, weight: float = None) -> bool:
         """
         Mark a crate as reconciled
         
@@ -297,8 +297,15 @@ class BatchReconciliationManager:
             crates_key = BatchReconciliationManager.get_crates_key(batch_id)
             crate_data = {
                 "reconciled_by": user_id,
-                "reconciled_at": timestamp
+                "reconciled_at": timestamp,
             }
+            
+            # Add photo URL and weight if provided
+            if photo_url:
+                crate_data["photo_url"] = photo_url
+                
+            if weight is not None:
+                crate_data["weight"] = weight
             
             # Store crate data in hash
             prefixed_key = RedisManager._get_key(crates_key)
@@ -359,8 +366,7 @@ class BatchReconciliationManager:
     
     @staticmethod
     def update_total_crates(batch_id: str, total_crates: int) -> bool:
-        """
-        Update the total crates count for a batch
+        """Update total crates count for a batch
         
         Args:
             batch_id: Batch ID
@@ -370,21 +376,58 @@ class BatchReconciliationManager:
             bool: Success status
         """
         try:
+            logger.info(f"Updating total crates for batch {batch_id} to {total_crates}")
+            
+            # Get batch key
             batch_key = BatchReconciliationManager.get_batch_key(batch_id)
-            batch_data = RedisManager.get_json(batch_key)
             
-            if not batch_data:
-                BatchReconciliationManager.init_batch_reconciliation(batch_id)
-                batch_data = {
-                    "closed": False,
-                    "closed_at": None,
-                    "closed_by": None,
-                    "reconciled_count": 0
-                }
-            
+            # Update batch data
+            batch_data = RedisManager.get_json(batch_key) or {}
             batch_data["total_crates"] = total_crates
             
-            return RedisManager.set_json(batch_key, batch_data)
+            # Save updated data
+            result = RedisManager.set_json(batch_key, batch_data)
+            
+            return result
         except Exception as e:
             logger.error(f"Error updating total crates: {e}")
+            return False
+            
+    @staticmethod
+    def update_batch_status(batch_id: str, can_close: bool = False, closed: bool = False, closed_at: str = None, closed_by: str = None) -> bool:
+        """Update batch status in Redis
+        
+        Args:
+            batch_id: Batch ID
+            can_close: Whether the batch can be closed
+            closed: Whether the batch is closed
+            closed_at: Timestamp when the batch was closed
+            closed_by: User ID who closed the batch
+            
+        Returns:
+            bool: Success status
+        """
+        try:
+            logger.info(f"Updating batch status for {batch_id}: can_close={can_close}, closed={closed}")
+            
+            # Get batch key
+            batch_key = BatchReconciliationManager.get_batch_key(batch_id)
+            
+            # Update batch data
+            batch_data = RedisManager.get_json(batch_key) or {}
+            
+            if can_close:
+                batch_data["can_close"] = True
+                
+            if closed:
+                batch_data["closed"] = True
+                batch_data["closed_at"] = closed_at
+                batch_data["closed_by"] = closed_by
+            
+            # Save updated data
+            result = RedisManager.set_json(batch_key, batch_data)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error updating batch status: {e}")
             return False

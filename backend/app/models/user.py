@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.models.crate import Crate
 from app.models.batch import Batch
-from app.models.reconciliation import ReconciliationLog
+from app.models.reconciliation import ReconciliationLog, CrateReconciliation
 
 class User(Base):
     __tablename__ = "users"
@@ -33,6 +33,10 @@ class User(Base):
     )
     reconciliation_logs = relationship(
         ReconciliationLog, back_populates="scanned_by_user", foreign_keys=[ReconciliationLog.scanned_by_id]
+    )
+    crate_reconciliations = relationship(
+        CrateReconciliation, foreign_keys=[CrateReconciliation.reconciled_by_id],
+        overlaps="reconciled_by"
     )
     
     def __repr__(self):

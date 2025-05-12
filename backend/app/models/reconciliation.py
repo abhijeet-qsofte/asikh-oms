@@ -1,6 +1,6 @@
 # app/models/reconciliation.py
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey, func, PrimaryKeyConstraint, ForeignKeyConstraint
+from sqlalchemy import Column, String, DateTime, ForeignKey, func, PrimaryKeyConstraint, ForeignKeyConstraint, Float, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
@@ -53,3 +53,33 @@ class AuditLog(Base):
     
     def __repr__(self):
         return f"<AuditLog {self.table_name} {self.action}>"
+
+
+class CrateReconciliation(Base):
+    __tablename__ = "crate_reconciliations"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    batch_id = Column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=False, index=True)
+    crate_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    crate_harvest_date = Column(DateTime, nullable=True)
+    qr_code = Column(String(100), ForeignKey("qr_codes.code_value"), index=True)
+    reconciled_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    reconciled_at = Column(DateTime, default=func.now(), nullable=False)
+    weight = Column(Float, nullable=True)
+    original_weight = Column(Float, nullable=True)
+    weight_differential = Column(Float, nullable=True)
+    photo_url = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+    is_reconciled = Column(Boolean, default=True, nullable=False)
+    
+    # Relationships
+    batch = relationship("Batch", back_populates="crate_reconciliations")
+    qr_code_obj = relationship("QRCode", back_populates="reconciliations", foreign_keys=[qr_code])
+    reconciled_by = relationship("User", back_populates="crate_reconciliations", foreign_keys=[reconciled_by_id])
+    
+    __table_args__ = (
+        ForeignKeyConstraint(['crate_id', 'crate_harvest_date'], ['crates.id', 'crates.harvest_date'], name='fk_recon_crate'),
+    )
+    
+    def __repr__(self):
+        return f"<CrateReconciliation {self.id} crate={self.crate_id} weight={self.weight}>"

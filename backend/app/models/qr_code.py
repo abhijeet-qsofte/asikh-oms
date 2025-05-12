@@ -18,6 +18,7 @@ class QRCode(Base):
     # Relationships
     crate = relationship("Crate", back_populates="qr_code_obj", uselist=False)
     reconciliation_logs = relationship("ReconciliationLog", back_populates="qr_code_obj", foreign_keys="ReconciliationLog.scanned_qr")
+    reconciliations = relationship("CrateReconciliation", back_populates="qr_code_obj", foreign_keys="CrateReconciliation.qr_code")
     
     def __repr__(self):
         return f"<QRCode {self.code_value}>"

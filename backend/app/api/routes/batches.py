@@ -14,12 +14,9 @@ from app.models.batch import Batch
 from app.models.crate import Crate
 from app.models.farm import Farm
 from app.models.packhouse import Packhouse
-from app.models.reconciliation import ReconciliationLog
+from app.models.reconciliation import ReconciliationLog, CrateReconciliation
 from app.models.variety import Variety
 from collections import defaultdict
-
-# Use Redis for tracking reconciled crates and batch closure status
-from app.core.redis_client import BatchReconciliationManager
 from app.schemas.batch import (
     BatchCreate,
     BatchUpdate,
@@ -41,18 +38,14 @@ def get_reconciliation_status(batch_id, batch, db=None):
         # Get total crates in batch
         total_crates = batch.total_crates or 0
         
-        # Get batch ID as string
-        batch_id_str = str(batch_id)
+        if db is None:
+            return f"0/{total_crates} crates (0%)"
         
-        # Get reconciliation data from Redis
-        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
-        
-        # Update total crates in Redis if needed
-        if redis_data.get("total_crates", 0) != total_crates:
-            BatchReconciliationManager.update_total_crates(batch_id_str, total_crates)
-        
-        # Get reconciled crates count
-        reconciled_crates = redis_data.get("reconciled_count", 0)
+        # Get reconciled crates count from the database
+        reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
         
         # Calculate reconciliation percentage
         percentage = (reconciled_crates / total_crates * 100) if total_crates > 0 else 0
@@ -61,7 +54,7 @@ def get_reconciliation_status(batch_id, batch, db=None):
         return f"{reconciled_crates}/{total_crates} crates ({int(percentage)}%)"
     except Exception as e:
         logger.error(f"Error getting reconciliation stats: {str(e)}")
-        return "0/0 crates (0%)"
+        return f"0/{total_crates} crates (0%)"
 
 @router.get("/{batch_id}/reconciliation-status", response_model=dict)
 async def get_batch_reconciliation_status(
@@ -84,15 +77,46 @@ async def get_batch_reconciliation_status(
         # Get reconciliation status text
         reconciliation_status = get_reconciliation_status(batch_id, batch, db)
         
-        batch_id_str = str(batch_id)
         is_fully_reconciled = False
-        
-        # Get reconciliation data from Redis
-        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
         
         # Only delivered batches can be reconciled
         if batch.status == "delivered":
-            is_fully_reconciled = redis_data.get("closed", False)
+            # Get total crates in batch
+            total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
+            
+            # Get reconciled crates count from the database
+            reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
+                CrateReconciliation.batch_id == batch_id,
+                CrateReconciliation.is_reconciled == True
+            ).scalar() or 0
+            
+            # Check if all crates are reconciled
+            is_fully_reconciled = reconciled_crates == total_crates and total_crates > 0
+        
+        # Get total and reconciled crates count from the database
+        total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
+        
+        # Get detailed information about crates in this batch
+        crates_in_batch = db.query(Crate).filter(Crate.batch_id == batch_id).all()
+        crate_ids = [str(crate.id) for crate in crates_in_batch]
+        crate_qr_codes = [crate.qr_code for crate in crates_in_batch]
+        
+        logger.info(f"Crates in batch {batch_id}: {crate_ids}")
+        logger.info(f"QR codes in batch {batch_id}: {crate_qr_codes}")
+        
+        # Get reconciled crates with detailed information
+        reconciled_records = db.query(CrateReconciliation).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).all()
+        
+        reconciled_qr_codes = [rec.qr_code for rec in reconciled_records]
+        reconciled_crate_ids = [str(rec.crate_id) for rec in reconciled_records]
+        
+        logger.info(f"Reconciled QR codes for batch {batch_id}: {reconciled_qr_codes}")
+        logger.info(f"Reconciled crate IDs for batch {batch_id}: {reconciled_crate_ids}")
+        
+        reconciled_count = len(reconciled_records)
         
         # Return the reconciliation status
         return {
@@ -101,8 +125,8 @@ async def get_batch_reconciliation_status(
             "status": batch.status,
             "reconciliation_status": reconciliation_status,
             "is_fully_reconciled": is_fully_reconciled,
-            "total_crates": redis_data.get("total_crates", 0),
-            "reconciled_count": redis_data.get("reconciled_count", 0)
+            "total_crates": total_crates,
+            "reconciled_count": reconciled_count
         }
     except Exception as e:
         # Log the error
@@ -375,6 +399,60 @@ async def list_batches(
         farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
         packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
         
+        # Get reconciliation stats for the batch if it's delivered or closed
+        weight_differential = None
+        weight_loss_percentage = None
+        reconciliation_status = None
+        
+        if batch.status in ['delivered', 'closed']:
+            # Get total crates in batch
+            total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch.id).scalar() or 0
+            
+            # Get reconciled crates count from the database
+            reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
+                CrateReconciliation.batch_id == batch.id,
+                CrateReconciliation.is_reconciled == True
+            ).scalar() or 0
+            
+            # Calculate reconciliation percentage
+            reconciliation_percentage = round((reconciled_crates / total_crates * 100) if total_crates > 0 else 0, 2)
+            reconciliation_status = f"{reconciled_crates}/{total_crates} ({reconciliation_percentage}%)"
+            
+            # Get weight statistics
+            total_original_weight = db.query(func.sum(Crate.weight)).filter(Crate.batch_id == batch.id).scalar() or 0
+            total_reconciled_weight = db.query(func.sum(CrateReconciliation.weight)).filter(
+                CrateReconciliation.batch_id == batch.id,
+                CrateReconciliation.is_reconciled == True
+            ).scalar() or 0
+            
+            # Check if there are any reconciled crates
+            reconciled_crates_count = db.query(func.count(CrateReconciliation.id)).filter(
+                CrateReconciliation.batch_id == batch.id,
+                CrateReconciliation.is_reconciled == True
+            ).scalar() or 0
+            
+            if reconciled_crates_count > 0:
+                # Get the weight differential from the database
+                total_weight_differential = db.query(func.sum(CrateReconciliation.weight_differential)).filter(
+                    CrateReconciliation.batch_id == batch.id,
+                    CrateReconciliation.is_reconciled == True
+                ).scalar()
+                
+                # If the database doesn't have the differential (older records), calculate it
+                if total_weight_differential is None:
+                    total_weight_differential = total_reconciled_weight - total_original_weight
+                
+                weight_differential = round(total_weight_differential, 2)
+                
+                # Calculate the percentage only if there's original weight
+                if total_original_weight > 0:
+                    weight_loss_percentage = round((total_weight_differential / total_original_weight * 100), 2)
+                else:
+                    weight_loss_percentage = 0
+            else:
+                weight_differential = 0
+                weight_loss_percentage = 0
+        
         result_items.append({
             "id": batch.id,
             "batch_code": batch.batch_code,
@@ -393,6 +471,9 @@ async def list_batches(
             "status": batch.status,
             "total_crates": batch.total_crates,
             "total_weight": batch.total_weight,
+            "weight_differential": weight_differential,
+            "weight_loss_percentage": weight_loss_percentage,
+            "reconciliation_status": reconciliation_status,
             "notes": batch.notes,
             "created_at": batch.created_at
         })
@@ -907,13 +988,39 @@ async def reconcile_crate(
     Reconcile a crate with a batch
     """
     try:
-        # Extract QR code from request body
+        # Extract data from request body
         qr_code = crate_data.get('qr_code')
+        photo_url = crate_data.get('photo_url')
+        weight = crate_data.get('weight')
+        
+        # Validate required fields
         if not qr_code:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="QR code is required"
             )
+            
+        # Validate weight if provided
+        if weight is not None:
+            try:
+                weight = float(weight)
+                if weight <= 0:
+                    raise ValueError("Weight must be positive")
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Weight must be a positive number"
+                )
+        else:
+            # Weight is required for loss calculation
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Weight is required for reconciliation"
+            )
+            
+        # Set photo_url to None if not provided
+        if photo_url is None:
+            photo_url = None  # Explicit assignment for clarity
             
         # Verify batch exists
         batch = db.query(Batch).filter(Batch.id == batch_id).first()
@@ -948,30 +1055,86 @@ async def reconcile_crate(
         # Get batch ID as string
         batch_id_str = str(batch_id)
         
-        # Store the reconciliation in Redis
-        now = datetime.utcnow().isoformat()
-        BatchReconciliationManager.reconcile_crate(batch_id_str, qr_code, str(current_user.id), now)
+        # Store the reconciliation in the database
+        now = datetime.utcnow()
+        
+        # Check if this crate has already been reconciled
+        existing_reconciliation = db.query(CrateReconciliation).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.qr_code == qr_code
+        ).first()
+        
+        if existing_reconciliation:
+            # Update existing reconciliation
+            existing_reconciliation.weight = weight
+            
+            # Calculate weight differential (reconciliation weight - original weight)
+            original_weight = crate.weight
+            weight_differential = weight - original_weight if original_weight is not None else None
+            
+            existing_reconciliation.original_weight = original_weight
+            existing_reconciliation.weight_differential = weight_differential
+            existing_reconciliation.photo_url = photo_url
+            existing_reconciliation.reconciled_by_id = current_user.id
+            existing_reconciliation.reconciled_at = now
+        else:
+            # Create new reconciliation record
+            # Calculate weight differential (reconciliation weight - original weight)
+            original_weight = crate.weight
+            weight_differential = weight - original_weight if original_weight is not None else None
+            
+            new_reconciliation = CrateReconciliation(
+                batch_id=batch_id,
+                crate_id=crate.id,
+                crate_harvest_date=crate.harvest_date,
+                qr_code=qr_code,
+                reconciled_by_id=current_user.id,
+                reconciled_at=now,
+                weight=weight,
+                original_weight=original_weight,
+                weight_differential=weight_differential,
+                photo_url=photo_url,
+                is_reconciled=True
+            )
+            db.add(new_reconciliation)
+        
+        # Commit the changes
+        db.commit()
         
         logger.info(f"Crate {qr_code} reconciled with batch {batch.batch_code} by user {current_user.username}")
         
         # Get total crates in batch
         total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
         
-        # Update total crates in Redis
-        BatchReconciliationManager.update_total_crates(batch_id_str, total_crates)
+        # Get reconciled crates count from the database
+        reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
         
-        # Get reconciliation data from Redis
-        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
-        
-        # Get reconciled crates count
-        reconciled_crates = redis_data.get("reconciled_count", 0)
+        # Calculate missing crates
         missing_crates = total_crates - reconciled_crates
+        
+        # Get weight statistics
+        total_original_weight = db.query(func.sum(Crate.weight)).filter(Crate.batch_id == batch_id).scalar() or 0
+        total_reconciled_weight = db.query(func.sum(CrateReconciliation.weight)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
+        total_weight_differential = db.query(func.sum(CrateReconciliation.weight_differential)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
         
         reconciliation_stats = {
             "total_crates": total_crates,
             "reconciled_crates": reconciled_crates,
             "missing_crates": missing_crates,
-            "reconciliation_percentage": (reconciled_crates / total_crates * 100) if total_crates > 0 else 0
+            "reconciliation_percentage": round((reconciled_crates / total_crates * 100) if total_crates > 0 else 0, 2),
+            "total_original_weight": round(total_original_weight, 2),
+            "total_reconciled_weight": round(total_reconciled_weight, 2),
+            "total_weight_differential": round(total_weight_differential, 2),
+            "weight_loss_percentage": round((total_weight_differential / total_original_weight * 100) if total_original_weight > 0 else 0, 2)
         }
         
         return {
@@ -1008,9 +1171,11 @@ async def get_reconciliation_stats(
         # Count total crates in batch
         total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
         
-        # Count reconciled crates from our in-memory store
-        batch_id_str = str(batch_id)
-        reconciled_crates = len(RECONCILED_CRATES[batch_id_str]["crates"])
+        # Get reconciled crates count from the database
+        reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
         
         # Calculate missing crates
         missing_crates = total_crates - reconciled_crates
@@ -1018,22 +1183,117 @@ async def get_reconciliation_stats(
         # Check if reconciliation is complete
         is_reconciliation_complete = (reconciled_crates == total_crates) and total_crates > 0
         
-        # Update batch status in our in-memory store if all crates are reconciled
+        # Update batch status if all crates are reconciled
         if is_reconciliation_complete and batch.status == "delivered":
-            RECONCILED_CRATES[batch_id_str]["can_close"] = True
+            # We don't need to do anything special here since we're using the database
+            # The reconciliation status is calculated on-the-fly from the database records
+            pass
+        
+        # Get weight statistics
+        total_original_weight = db.query(func.sum(Crate.weight)).filter(Crate.batch_id == batch_id).scalar() or 0
+        total_reconciled_weight = db.query(func.sum(CrateReconciliation.weight)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
+        total_weight_differential = db.query(func.sum(CrateReconciliation.weight_differential)).filter(
+            CrateReconciliation.batch_id == batch_id,
+            CrateReconciliation.is_reconciled == True
+        ).scalar() or 0
         
         return {
             "total_crates": total_crates,
             "reconciled_crates": reconciled_crates,
             "missing_crates": missing_crates,
-            "reconciliation_percentage": (reconciled_crates / total_crates * 100) if total_crates > 0 else 0,
-            "is_reconciliation_complete": is_reconciliation_complete
+            "reconciliation_percentage": round((reconciled_crates / total_crates * 100) if total_crates > 0 else 0, 2),
+            "is_reconciliation_complete": is_reconciliation_complete,
+            "total_original_weight": round(total_original_weight, 2),
+            "total_reconciled_weight": round(total_reconciled_weight, 2),
+            "total_weight_differential": round(total_weight_differential, 2),
+            "weight_loss_percentage": round((total_weight_differential / total_original_weight * 100) if total_original_weight > 0 else 0, 2)
         }
     except Exception as e:
         logger.error(f"Error getting reconciliation stats: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting reconciliation stats: {str(e)}"
+        )
+
+
+@router.get("/{batch_id}/weight-details", response_model=dict)
+async def get_batch_weight_details(
+    batch_id: uuid.UUID,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get detailed weight information for a batch
+    """
+    try:
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Get all crates in the batch with their original weights
+        crates = db.query(Crate).filter(Crate.batch_id == batch_id).all()
+        crate_details = []
+        
+        total_original_weight = 0
+        total_reconciled_weight = 0
+        total_weight_differential = 0
+        
+        for crate in crates:
+            # Get reconciliation record if it exists
+            reconciliation = db.query(CrateReconciliation).filter(
+                CrateReconciliation.batch_id == batch_id,
+                CrateReconciliation.crate_id == crate.id
+            ).first()
+            
+            original_weight = crate.weight or 0
+            reconciled_weight = reconciliation.weight if reconciliation else None
+            weight_differential = reconciliation.weight_differential if reconciliation else None
+            
+            # If weight_differential is None but we have both weights, calculate it
+            if weight_differential is None and reconciled_weight is not None:
+                weight_differential = reconciled_weight - original_weight
+            
+            total_original_weight += original_weight
+            if reconciled_weight is not None:
+                total_reconciled_weight += reconciled_weight
+            if weight_differential is not None:
+                total_weight_differential += weight_differential
+            
+            crate_details.append({
+                "crate_id": str(crate.id),
+                "qr_code": crate.qr_code,
+                "original_weight": original_weight,
+                "reconciled_weight": reconciled_weight,
+                "weight_differential": weight_differential,
+                "is_reconciled": reconciliation is not None
+            })
+        
+        # Calculate weight loss percentage
+        weight_loss_percentage = 0
+        if total_original_weight > 0:
+            weight_loss_percentage = (total_weight_differential / total_original_weight) * 100
+        
+        return {
+            "batch_id": str(batch_id),
+            "batch_code": batch.batch_code,
+            "total_original_weight": round(total_original_weight, 2),
+            "total_reconciled_weight": round(total_reconciled_weight, 2),
+            "total_weight_differential": round(total_weight_differential, 2),
+            "weight_loss_percentage": round(weight_loss_percentage, 2),
+            "crate_details": crate_details
+        }
+    except Exception as e:
+        logger.error(f"Error getting batch weight details: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting batch weight details: {str(e)}"
         )
 
 
@@ -1075,10 +1335,17 @@ async def close_batch(
         # Close the batch
         batch.status = "closed"
         
-        # Store closure info in Redis
-        batch_id_str = str(batch_id)
-        now = datetime.utcnow().isoformat()
-        BatchReconciliationManager.close_batch(batch_id_str, str(current_user.id), now)
+        # Update batch with closure information
+        now = datetime.utcnow()
+        batch.updated_at = now
+        
+        # Instead of using the partitioned ReconciliationLog table, just update the batch status
+        # This avoids the partition error while still marking the batch as closed
+        batch.status = "closed"
+        batch.updated_at = now
+        
+        # Log the closure action but don't store it in the database
+        logger.info(f"Batch {batch.batch_code} closed by user {current_user.username} at {now}")
         
         db.commit()
         

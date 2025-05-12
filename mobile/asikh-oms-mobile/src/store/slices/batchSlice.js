@@ -11,6 +11,7 @@ const initialState = {
   loading: false,
   error: null,
   success: false,
+  weightDetails: {}, // Store weight details for each batch by ID
   pagination: {
     total: 0,
     page: 1,
@@ -191,6 +192,20 @@ export const getReconciliationStatus = createAsyncThunk(
   }
 );
 
+// Get detailed weight information for a batch
+export const getBatchWeightDetails = createAsyncThunk(
+  'batches/getWeightDetails',
+  async (batchId, { rejectWithValue }) => {
+    try {
+      return await batchService.getBatchWeightDetails(batchId);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to get weight details' }
+      );
+    }
+  }
+);
+
 // Set page for pagination
 export const setPage = createAsyncThunk(
   'batches/setPage',
@@ -215,6 +230,49 @@ const batchSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Handle getBatchWeightDetails
+      .addCase(getBatchWeightDetails.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getBatchWeightDetails.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+        
+        // Store weight details by batch ID
+        const batchId = action.payload.batch_id;
+        state.weightDetails = {
+          ...state.weightDetails,
+          [batchId]: action.payload
+        };
+        
+        // If we have a current batch, update its weight information
+        if (state.currentBatch && state.currentBatch.id === batchId) {
+          state.currentBatch = {
+            ...state.currentBatch,
+            total_original_weight: action.payload.total_original_weight,
+            total_reconciled_weight: action.payload.total_reconciled_weight,
+            total_weight_differential: action.payload.total_weight_differential,
+            weight_loss_percentage: action.payload.weight_loss_percentage
+          };
+        }
+        
+        // Also update the batch in the batches array if it exists
+        const batchIndex = state.batches.findIndex(batch => batch.id === batchId);
+        if (batchIndex !== -1) {
+          state.batches[batchIndex] = {
+            ...state.batches[batchIndex],
+            total_original_weight: action.payload.total_original_weight,
+            total_reconciled_weight: action.payload.total_reconciled_weight,
+            total_weight_differential: action.payload.total_weight_differential,
+            weight_loss_percentage: action.payload.weight_loss_percentage
+          };
+        }
+      })
+      .addCase(getBatchWeightDetails.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || { message: 'Failed to get weight details' };
+      })
       // Create batch
       .addCase(createBatch.pending, (state) => {
         state.loading = true;
