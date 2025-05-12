@@ -76,7 +76,7 @@ class CrateInDB(CrateBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class CrateResponse(BaseModel):
@@ -97,7 +97,7 @@ class CrateResponse(BaseModel):
     quality_grade: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class CrateList(BaseModel):

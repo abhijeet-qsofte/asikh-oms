@@ -80,7 +80,7 @@ class QRCodeResponse(BaseModel):
     qr_image: Optional[str] = None  # Base64 encoded QR code image
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class QRCodeList(BaseModel):

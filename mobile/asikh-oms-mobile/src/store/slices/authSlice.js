@@ -1,6 +1,8 @@
 // src/store/slices/authSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../api/authService';
+import { TOKEN_KEY } from '../../constants/config';
 
 // Async actions
 export const login = createAsyncThunk(
@@ -23,15 +25,18 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 export const checkAuth = createAsyncThunk('auth/check', async () => {
   const isAuth = await authService.isAuthenticated();
   if (isAuth) {
-    return await authService.getCurrentUser();
+    const user = await authService.getCurrentUser();
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    return { user, token };
   }
-  return null;
+  return { user: null, token: null };
 });
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
     user: null,
+    token: null,
     isAuthenticated: false,
     loading: false,
     error: null,
@@ -51,6 +56,7 @@ const authSlice = createSlice({
       .addCase(login.fulfilled, (state, action) => {
         state.loading = false;
         state.isAuthenticated = true;
+        state.token = action.payload.access_token;
         state.user = {
           id: action.payload.user_id,
           username: action.payload.username,
@@ -64,12 +70,15 @@ const authSlice = createSlice({
       // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
+        state.token = null;
         state.isAuthenticated = false;
       })
       // Check auth
       .addCase(checkAuth.fulfilled, (state, action) => {
-        state.isAuthenticated = !!action.payload;
-        state.user = action.payload;
+        state.loading = false;
+        state.isAuthenticated = !!action.payload.user;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
       });
   },
 });

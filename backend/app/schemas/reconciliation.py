@@ -38,7 +38,7 @@ class ReconciliationResponse(BaseModel):
     crate_info: Optional[Dict[str, Any]] = None  # Basic crate details if found
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class ReconciliationLogInDB(BaseModel):
@@ -55,7 +55,7 @@ class ReconciliationLogInDB(BaseModel):
     notes: Optional[str] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class ReconciliationList(BaseModel):

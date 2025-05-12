@@ -61,7 +61,7 @@ class PackhouseResponse(PackhouseBase):
     updated_at: datetime
     
     class Config:
-        orm_mode = True
+        from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility
 
 
 class PackhouseList(BaseModel):
