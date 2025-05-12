@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { theme } from '../../constants/theme';
-import { getVarieties, createVariety, resetAdminState } from '../../store/slices/adminSlice';
+import { getVarieties, createVariety, updateVariety, resetAdminState } from '../../store/slices/adminSlice';
 
 // Validation schema for variety form
 const VarietySchema = Yup.object().shape({
@@ -35,6 +35,8 @@ export default function VarietyManagementScreen({ navigation }) {
   
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
   
   // Check if user is admin
   useEffect(() => {
@@ -81,7 +83,31 @@ export default function VarietyManagementScreen({ navigation }) {
       ...values,
       average_weight: Number(values.average_weight),
     };
-    dispatch(createVariety(varietyData));
+    
+    if (isEditing && currentItem) {
+      // Update existing variety
+      dispatch(updateVariety({
+        varietyId: currentItem.id,
+        varietyData
+      }));
+    } else {
+      // Create new variety
+      dispatch(createVariety(varietyData));
+    }
+  };
+  
+  // Handle edit button press
+  const handleEdit = (item) => {
+    setCurrentItem(item);
+    setIsEditing(true);
+    setModalVisible(true);
+  };
+  
+  // Handle add button press
+  const handleAdd = () => {
+    setCurrentItem(null);
+    setIsEditing(false);
+    setModalVisible(true);
   };
   
   // If not admin, show access denied
@@ -100,7 +126,12 @@ export default function VarietyManagementScreen({ navigation }) {
   const renderVarietyItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title style={styles.cardTitle}>{item.name}</Title>
+        <View style={styles.cardHeader}>
+          <Title style={styles.cardTitle}>{item.name}</Title>
+          <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+            <Ionicons name="pencil" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.cardRow}>
           <Ionicons name="information-circle-outline" size={18} color={theme.colors.primary} />
@@ -162,7 +193,7 @@ export default function VarietyManagementScreen({ navigation }) {
       <FAB
         style={styles.fab}
         icon="plus"
-        onPress={() => setModalVisible(true)}
+        onPress={handleAdd}
         color="#fff"
       />
       
@@ -176,16 +207,19 @@ export default function VarietyManagementScreen({ navigation }) {
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <ScrollView>
-              <Text style={styles.modalTitle}>Add New Mango Variety</Text>
+              <Text style={styles.modalTitle}>
+                {isEditing ? 'Edit Mango Variety' : 'Add New Mango Variety'}
+              </Text>
               
               <Formik
                 initialValues={{
-                  name: '',
-                  description: '',
-                  average_weight: '',
-                  season_start: '',
-                  season_end: '',
+                  name: isEditing && currentItem ? currentItem.name : '',
+                  description: isEditing && currentItem ? currentItem.description : '',
+                  average_weight: isEditing && currentItem ? String(currentItem.average_weight) : '',
+                  season_start: isEditing && currentItem ? currentItem.season_start : '',
+                  season_end: isEditing && currentItem ? currentItem.season_end : '',
                 }}
+                enableReinitialize={true}
                 validationSchema={VarietySchema}
                 onSubmit={handleSubmit}
               >
@@ -278,7 +312,7 @@ export default function VarietyManagementScreen({ navigation }) {
                         loading={loading}
                         disabled={loading}
                       >
-                        Save
+                        {isEditing ? 'Update Variety' : 'Add Variety'}
                       </Button>
                     </View>
                   </View>
@@ -307,7 +341,16 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
+    flex: 1,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
+  },
+  editButton: {
+    padding: 8,
   },
   cardRow: {
     flexDirection: 'row',

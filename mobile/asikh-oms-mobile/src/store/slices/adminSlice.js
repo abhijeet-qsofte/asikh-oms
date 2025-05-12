@@ -44,6 +44,19 @@ export const createFarm = createAsyncThunk(
   }
 );
 
+export const updateFarm = createAsyncThunk(
+  'admin/updateFarm',
+  async ({ farmId, farmData }, { rejectWithValue }) => {
+    try {
+      return await adminService.updateFarm(farmId, farmData);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update farm' }
+      );
+    }
+  }
+);
+
 // Async thunks for packhouses
 export const getPackhouses = createAsyncThunk(
   'admin/getPackhouses',
@@ -66,6 +79,19 @@ export const createPackhouse = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: 'Failed to create packhouse' }
+      );
+    }
+  }
+);
+
+export const updatePackhouse = createAsyncThunk(
+  'admin/updatePackhouse',
+  async ({ packhouseId, packhouseData }, { rejectWithValue }) => {
+    try {
+      return await adminService.updatePackhouse(packhouseId, packhouseData);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update packhouse' }
       );
     }
   }
@@ -98,6 +124,19 @@ export const createVariety = createAsyncThunk(
   }
 );
 
+export const updateVariety = createAsyncThunk(
+  'admin/updateVariety',
+  async ({ varietyId, varietyData }, { rejectWithValue }) => {
+    try {
+      return await adminService.updateVariety(varietyId, varietyData);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update variety' }
+      );
+    }
+  }
+);
+
 // Async thunks for users
 export const getUsers = createAsyncThunk(
   'admin/getUsers',
@@ -120,6 +159,19 @@ export const createUser = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: 'Failed to create user' }
+      );
+    }
+  }
+);
+
+export const updateUser = createAsyncThunk(
+  'admin/updateUser',
+  async ({ userId, userData }, { rejectWithValue }) => {
+    try {
+      return await adminService.updateUser(userId, userData);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to update user' }
       );
     }
   }
@@ -183,6 +235,28 @@ const adminSlice = createSlice({
         state.error = action.payload;
       })
       
+      // Update farm
+      .addCase(updateFarm.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(updateFarm.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentFarm = action.payload;
+        
+        // Update the farm in the farms array
+        const index = state.farms.findIndex(farm => farm.id === action.payload.id);
+        if (index !== -1) {
+          state.farms[index] = action.payload;
+        }
+      })
+      .addCase(updateFarm.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
       // Get packhouses
       .addCase(getPackhouses.pending, (state) => {
         state.loading = true;
@@ -223,6 +297,28 @@ const adminSlice = createSlice({
         state.error = action.payload;
       })
       
+      // Update packhouse
+      .addCase(updatePackhouse.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(updatePackhouse.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentPackhouse = action.payload;
+        
+        // Update the packhouse in the packhouses array
+        const index = state.packhouses.findIndex(packhouse => packhouse.id === action.payload.id);
+        if (index !== -1) {
+          state.packhouses[index] = action.payload;
+        }
+      })
+      .addCase(updatePackhouse.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
       // Get varieties
       .addCase(getVarieties.pending, (state) => {
         state.loading = true;
@@ -254,6 +350,28 @@ const adminSlice = createSlice({
         state.error = action.payload;
       })
       
+      // Update variety
+      .addCase(updateVariety.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(updateVariety.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentVariety = action.payload;
+        
+        // Update the variety in the varieties array
+        const index = state.varieties.findIndex(variety => variety.id === action.payload.id);
+        if (index !== -1) {
+          state.varieties[index] = action.payload;
+        }
+      })
+      .addCase(updateVariety.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
       // Get users
       .addCase(getUsers.pending, (state) => {
         state.loading = true;
@@ -281,6 +399,28 @@ const adminSlice = createSlice({
         state.users.push(action.payload);
       })
       .addCase(createUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      
+      // Update user
+      .addCase(updateUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = false;
+      })
+      .addCase(updateUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentUser = action.payload;
+        
+        // Update the user in the users array
+        const index = state.users.findIndex(user => user.id === action.payload.id);
+        if (index !== -1) {
+          state.users[index] = action.payload;
+        }
+      })
+      .addCase(updateUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });
