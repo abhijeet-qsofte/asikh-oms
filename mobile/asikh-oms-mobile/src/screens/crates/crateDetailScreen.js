@@ -165,11 +165,19 @@ export default function CrateDetailsScreen({ route, navigation }) {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Title style={styles.title}>Crate Details</Title>
-        <View style={styles.qrContainer}>
-          <Text style={styles.qrLabel}>QR Code:</Text>
-          <Text style={styles.qrCode}>{crate.qr_code}</Text>
-        </View>
       </View>
+      
+      <Card style={styles.qrCard}>
+        <Card.Content>
+          <View style={styles.qrContainer}>
+            <Ionicons name="qr-code" size={28} color={theme.colors.primary} style={styles.qrIcon} />
+            <View>
+              <Text style={styles.qrLabel}>QR Code</Text>
+              <Text style={styles.qrCode}>{crate.qr_code}</Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
 
       {crate.photo_url && (
         <View style={styles.photoContainer}>
@@ -286,6 +294,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  qrCard: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
   header: {
     backgroundColor: theme.colors.primary,
     padding: 20,
@@ -300,15 +315,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  qrIcon: {
+    marginRight: 12,
+  },
   qrLabel: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontSize: 14,
+    color: '#666',
   },
   qrCode: {
-    color: 'white',
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
   },
   photoContainer: {
     margin: 16,

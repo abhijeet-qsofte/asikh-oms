@@ -77,9 +77,14 @@ export default function BatchListScreen({ navigation }) {
     navigation.navigate('BatchDetail', { batchId });
   };
   
-  // Navigate to create batch form
+  // Handle create batch button press
   const handleCreateBatch = () => {
     navigation.navigate('BatchAssign');
+  };
+  
+  // Handle receive batch button press
+  const handleReceiveBatch = () => {
+    navigation.navigate('BatchReceiveScreen');
   };
   
   // Get status badge color
@@ -120,9 +125,23 @@ export default function BatchListScreen({ navigation }) {
           </View>
           
           <View style={styles.cardRow}>
+            <Ionicons name="qr-code-outline" size={18} color={theme.colors.primary} />
+            <Text style={styles.cardText}>QR Code: {item.batch_code}</Text>
+          </View>
+          
+          <View style={styles.cardRow}>
             <Ionicons name="cube-outline" size={18} color={theme.colors.primary} />
             <Text style={styles.cardText}>Crates: {item.total_crates || 0}</Text>
           </View>
+          
+          {item.status === 'delivered' && (
+            <View style={styles.cardRow}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.success} />
+              <Text style={styles.cardText}>
+                Reconciliation: {item.reconciliation_status || '0/0 (0%)'}
+              </Text>
+            </View>
+          )}
           
           <View style={styles.cardRow}>
             <Ionicons name="scale-outline" size={18} color={theme.colors.primary} />

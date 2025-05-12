@@ -136,7 +136,27 @@ const batchService = {
       console.error('Error closing batch:', error.response?.data || error.message);
       throw error;
     }
-  }
+  },
+
+  /**
+   * Get reconciliation status for a batch
+   * @param {string} batchId - The batch ID
+   * @returns {Promise} - The API response with reconciliation status
+   */
+  getReconciliationStatus: async (batchId) => {
+    try {
+      console.log(`Fetching reconciliation status for batch: ${batchId}`);
+      const url = `/api/batches/${batchId}/reconciliation-status`;
+      console.log(`API URL: ${url}`);
+      const response = await apiClient.get(url);
+      console.log('Reconciliation status response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error getting reconciliation status:', error.response?.data || error.message);
+      console.error('Error details:', error);
+      throw error;
+    }
+  },
 };
 
 export default batchService;

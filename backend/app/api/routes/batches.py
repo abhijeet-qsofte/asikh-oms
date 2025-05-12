@@ -6,11 +6,6 @@ from typing import Optional, List, Dict
 import uuid
 import logging
 from datetime import datetime
-from collections import defaultdict
-
-# In-memory store for reconciled crates and batch status
-# Format: {batch_id: {"crates": {crate_qr_code: timestamp}, "closed": bool, "closed_at": timestamp, "closed_by": user_id}}
-RECONCILED_CRATES = defaultdict(lambda: {"crates": {}, "closed": False, "closed_at": None, "closed_by": None})
 
 from app.core.database import get_db_dependency
 from app.core.security import get_current_user, check_user_role
@@ -21,6 +16,10 @@ from app.models.farm import Farm
 from app.models.packhouse import Packhouse
 from app.models.reconciliation import ReconciliationLog
 from app.models.variety import Variety
+from collections import defaultdict
+
+# Use Redis for tracking reconciled crates and batch closure status
+from app.core.redis_client import BatchReconciliationManager
 from app.schemas.batch import (
     BatchCreate,
     BatchUpdate,
@@ -32,6 +31,87 @@ from app.schemas.batch import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# Helper function to get reconciliation status for a batch
+def get_reconciliation_status(batch_id, batch, db=None):
+    if batch.status != "delivered":
+        return None
+        
+    try:
+        # Get total crates in batch
+        total_crates = batch.total_crates or 0
+        
+        # Get batch ID as string
+        batch_id_str = str(batch_id)
+        
+        # Get reconciliation data from Redis
+        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
+        
+        # Update total crates in Redis if needed
+        if redis_data.get("total_crates", 0) != total_crates:
+            BatchReconciliationManager.update_total_crates(batch_id_str, total_crates)
+        
+        # Get reconciled crates count
+        reconciled_crates = redis_data.get("reconciled_count", 0)
+        
+        # Calculate reconciliation percentage
+        percentage = (reconciled_crates / total_crates * 100) if total_crates > 0 else 0
+        
+        # Format the reconciliation status
+        return f"{reconciled_crates}/{total_crates} crates ({int(percentage)}%)"
+    except Exception as e:
+        logger.error(f"Error getting reconciliation stats: {str(e)}")
+        return "0/0 crates (0%)"
+
+@router.get("/{batch_id}/reconciliation-status", response_model=dict)
+async def get_batch_reconciliation_status(
+    batch_id: uuid.UUID,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get reconciliation status for a batch
+    """
+    try:
+        # Find the batch
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Get reconciliation status text
+        reconciliation_status = get_reconciliation_status(batch_id, batch, db)
+        
+        batch_id_str = str(batch_id)
+        is_fully_reconciled = False
+        
+        # Get reconciliation data from Redis
+        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
+        
+        # Only delivered batches can be reconciled
+        if batch.status == "delivered":
+            is_fully_reconciled = redis_data.get("closed", False)
+        
+        # Return the reconciliation status
+        return {
+            "batch_id": str(batch_id),
+            "batch_code": batch.batch_code,
+            "status": batch.status,
+            "reconciliation_status": reconciliation_status,
+            "is_fully_reconciled": is_fully_reconciled,
+            "total_crates": redis_data.get("total_crates", 0),
+            "reconciled_count": redis_data.get("reconciled_count", 0)
+        }
+    except Exception as e:
+        # Log the error
+        logger.error(f"Error getting reconciliation status: {str(e)}")
+        # Return a 500 error with details
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while getting reconciliation status: {str(e)}"
+        )
 
 @router.post("/", response_model=BatchResponse, status_code=status.HTTP_201_CREATED)
 async def create_batch(
@@ -865,17 +945,26 @@ async def reconcile_crate(
                 detail=f"Crate {qr_code} is not assigned to this batch"
             )
         
-        # Store the reconciliation in our in-memory store
+        # Get batch ID as string
         batch_id_str = str(batch_id)
-        RECONCILED_CRATES[batch_id_str]["crates"][qr_code] = datetime.utcnow().isoformat()
+        
+        # Store the reconciliation in Redis
+        now = datetime.utcnow().isoformat()
+        BatchReconciliationManager.reconcile_crate(batch_id_str, qr_code, str(current_user.id), now)
         
         logger.info(f"Crate {qr_code} reconciled with batch {batch.batch_code} by user {current_user.username}")
         
         # Get total crates in batch
         total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
         
-        # Count reconciled crates from our in-memory store
-        reconciled_crates = len(RECONCILED_CRATES[batch_id_str]["crates"])
+        # Update total crates in Redis
+        BatchReconciliationManager.update_total_crates(batch_id_str, total_crates)
+        
+        # Get reconciliation data from Redis
+        redis_data = BatchReconciliationManager.get_reconciliation_status(batch_id_str)
+        
+        # Get reconciled crates count
+        reconciled_crates = redis_data.get("reconciled_count", 0)
         missing_crates = total_crates - reconciled_crates
         
         reconciliation_stats = {
@@ -986,11 +1075,10 @@ async def close_batch(
         # Close the batch
         batch.status = "closed"
         
-        # Store closure info in our in-memory store
+        # Store closure info in Redis
         batch_id_str = str(batch_id)
-        RECONCILED_CRATES[batch_id_str]["closed"] = True
-        RECONCILED_CRATES[batch_id_str]["closed_at"] = datetime.utcnow().isoformat()
-        RECONCILED_CRATES[batch_id_str]["closed_by"] = str(current_user.id)
+        now = datetime.utcnow().isoformat()
+        BatchReconciliationManager.close_batch(batch_id_str, str(current_user.id), now)
         
         db.commit()
         

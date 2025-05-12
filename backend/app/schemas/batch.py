@@ -79,6 +79,7 @@ class BatchResponse(BaseModel):
     total_weight: float
     notes: Optional[str] = None
     created_at: datetime
+    reconciliation_status: Optional[str] = None
     
     class Config:
         from_attributes = True  # Updated from orm_mode for Pydantic v2 compatibility

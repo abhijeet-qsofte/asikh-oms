@@ -20,7 +20,9 @@ import BatchFormScreen from '../screens/batches/BatchFormScreen';
 import BatchDetailScreen from '../screens/batches/BatchDetailScreen';
 import BatchScanScreen from '../screens/batches/BatchScanScreen';
 import BatchListScreen from '../screens/batches/BatchListScreen';
+import BatchReceiveScreen from '../screens/batches/BatchReceiveScreen';
 import CrateSelectionScreen from '../screens/batches/CrateSelectionScreen';
+import ReconciliationDetailScreen from '../screens/batches/ReconciliationDetailScreen';
 //import ReconciliationScreen from '../screens/reconciliation/ReconciliationScreen';
 //import ProfileScreen from '../screens/profile/ProfileScreen';
 
@@ -80,46 +82,124 @@ const TabNavigator = () => (
 // Stack navigators for each feature - Harvest Entry Flow
 const CrateNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen name="CrateList" component={CrateListScreen} options={{ title: 'Crates' }} />
-    <MainStack.Screen name="CrateScan" component={CrateScanScreen} options={{ title: 'Scan Crate QR' }} />
-    <MainStack.Screen name="CrateForm" component={CrateFormScreen} options={{ title: 'Crate Details' }} />
-    <MainStack.Screen name="CrateDetail" component={CrateDetailsScreen} options={{ title: 'Crate Summary' }} />
+    <MainStack.Screen
+      name="CrateList"
+      component={CrateListScreen}
+      options={{ title: 'Crates' }}
+    />
+    <MainStack.Screen
+      name="CrateScan"
+      component={CrateScanScreen}
+      options={{ title: 'Scan Crate QR' }}
+    />
+    <MainStack.Screen
+      name="CrateForm"
+      component={CrateFormScreen}
+      options={{ title: 'Crate Details' }}
+    />
+    <MainStack.Screen
+      name="CrateDetail"
+      component={CrateDetailsScreen}
+      options={{ title: 'Crate Summary' }}
+    />
   </MainStack.Navigator>
 );
 
 // Dispatch Scan Flow
 const BatchNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen name="BatchList" component={BatchListScreen} options={{ title: 'Batches' }} />
-    <MainStack.Screen name="BatchScan" component={BatchScanScreen} options={{ title: 'Add Crates to Batch' }} />
-    <MainStack.Screen name="BatchAssign" component={BatchFormScreen} options={{ title: 'Create Batch' }} />
-    <MainStack.Screen name="BatchDetail" component={BatchDetailScreen} options={{ title: 'Batch Details' }} />
-    <MainStack.Screen name="CrateSelection" component={CrateSelectionScreen} options={{ title: 'Select Existing Crate' }} />
+    <MainStack.Screen
+      name="BatchList"
+      component={BatchListScreen}
+      options={{ title: 'Batches' }}
+    />
+    <MainStack.Screen
+      name="BatchScan"
+      component={BatchScanScreen}
+      options={{ title: 'Add Crates to Batch' }}
+    />
+    <MainStack.Screen
+      name="BatchAssign"
+      component={BatchFormScreen}
+      options={{ title: 'Create Batch' }}
+    />
+    <MainStack.Screen
+      name="BatchDetail"
+      component={BatchDetailScreen}
+      options={{ title: 'Batch Details' }}
+    />
+    <MainStack.Screen
+      name="CrateSelection"
+      component={CrateSelectionScreen}
+      options={{ title: 'Select Existing Crate' }}
+    />
+    <MainStack.Screen
+      name="ReconciliationDetail"
+      component={ReconciliationDetailScreen}
+      options={{ title: 'Batch Reconciliation' }}
+    />
+    <MainStack.Screen
+      name="BatchReceive"
+      component={BatchReceiveScreen}
+      options={{ title: 'Receive Batch' }}
+    />
   </MainStack.Navigator>
 );
 
 // Import reconciliation screens
 import ReconciliationListScreen from '../screens/reconciliation/ReconciliationListScreen';
 import ReconciliationScanScreen from '../screens/reconciliation/ReconciliationScanScreen';
-import ReconciliationDetailScreen from '../screens/reconciliation/ReconciliationDetailScreen';
+//import ReconciliationDetailScreen from '../screens/reconciliation/ReconciliationDetailScreen';
 
 // Reconciliation Flow
 const ReconciliationNavigator = () => (
   <MainStack.Navigator>
-    <MainStack.Screen name="ReconciliationList" component={ReconciliationListScreen} options={{ title: 'Select Batch' }} />
-    <MainStack.Screen name="ReconciliationScan" component={ReconciliationScanScreen} options={{ title: 'Scan Crates' }} />
-    <MainStack.Screen name="ReconciliationDetail" component={ReconciliationDetailScreen} options={{ title: 'Reconciliation Summary' }} />
+    <MainStack.Screen
+      name="ReconciliationList"
+      component={ReconciliationListScreen}
+      options={{ title: 'Select Batch' }}
+    />
+    <MainStack.Screen
+      name="ReconciliationScan"
+      component={ReconciliationScanScreen}
+      options={{ title: 'Scan Crates' }}
+    />
+    <MainStack.Screen
+      name="ReconciliationDetail"
+      component={ReconciliationDetailScreen}
+      options={{ title: 'Reconciliation Summary' }}
+    />
   </MainStack.Navigator>
 );
 
 // Admin Flow
 const AdminNavigator = () => (
   <AdminStack.Navigator>
-    <AdminStack.Screen name="AdminDashboard" component={AdminDashboardScreen} options={{ title: 'Admin Dashboard' }} />
-    <AdminStack.Screen name="FarmManagement" component={FarmManagementScreen} options={{ title: 'Manage Farms' }} />
-    <AdminStack.Screen name="PackhouseManagement" component={PackhouseManagementScreen} options={{ title: 'Manage Packhouses' }} />
-    <AdminStack.Screen name="VarietyManagement" component={VarietyManagementScreen} options={{ title: 'Manage Varieties' }} />
-    <AdminStack.Screen name="UserManagement" component={UserManagementScreen} options={{ title: 'Manage Users' }} />
+    <AdminStack.Screen
+      name="AdminDashboard"
+      component={AdminDashboardScreen}
+      options={{ title: 'Admin Dashboard' }}
+    />
+    <AdminStack.Screen
+      name="FarmManagement"
+      component={FarmManagementScreen}
+      options={{ title: 'Manage Farms' }}
+    />
+    <AdminStack.Screen
+      name="PackhouseManagement"
+      component={PackhouseManagementScreen}
+      options={{ title: 'Manage Packhouses' }}
+    />
+    <AdminStack.Screen
+      name="VarietyManagement"
+      component={VarietyManagementScreen}
+      options={{ title: 'Manage Varieties' }}
+    />
+    <AdminStack.Screen
+      name="UserManagement"
+      component={UserManagementScreen}
+      options={{ title: 'Manage Users' }}
+    />
   </AdminStack.Navigator>
 );
 

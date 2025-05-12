@@ -20,6 +20,7 @@ import {
   getBatchStats,
   markBatchDeparted,
   markBatchArrived,
+  getReconciliationStatus,
 } from '../../store/slices/batchSlice';
 
 export default function BatchDetailScreen({ route, navigation }) {
@@ -34,6 +35,7 @@ export default function BatchDetailScreen({ route, navigation }) {
     if (batchId) {
       dispatch(getBatchById(batchId));
       dispatch(getBatchStats(batchId));
+      dispatch(getReconciliationStatus(batchId));
     }
   }, [batchId, dispatch]);
   
@@ -169,6 +171,18 @@ export default function BatchDetailScreen({ route, navigation }) {
         </Chip>
       </View>
       
+      <Card style={styles.qrCard}>
+        <Card.Content>
+          <View style={styles.qrContainer}>
+            <Ionicons name="qr-code" size={28} color={theme.colors.primary} style={styles.qrIcon} />
+            <View>
+              <Text style={styles.qrLabel}>QR Code</Text>
+              <Text style={styles.qrCode}>{currentBatch.batch_code}</Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+      
       <Card style={styles.card}>
         <Card.Content>
           <Title style={styles.cardTitle}>Batch Information</Title>
@@ -198,6 +212,33 @@ export default function BatchDetailScreen({ route, navigation }) {
             <Text style={styles.infoLabel}>Total Weight:</Text>
             <Text style={styles.infoValue}>{currentBatch.total_weight || 0} kg</Text>
           </View>
+          
+          {currentBatch.status === 'delivered' && (
+            <>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Reconciliation:</Text>
+                <View style={styles.reconciliationContainer}>
+                  <Ionicons 
+                    name={currentBatch.is_fully_reconciled ? "checkmark-circle" : "time-outline"} 
+                    size={18} 
+                    color={currentBatch.is_fully_reconciled ? theme.colors.success : theme.colors.warning} 
+                    style={styles.reconciliationIcon} 
+                  />
+                  <Text style={styles.infoValue}>
+                    {currentBatch.reconciliation_status || '0/0 crates (0%)'}
+                  </Text>
+                </View>
+              </View>
+              <Button 
+                mode="contained" 
+                icon="qrcode-scan" 
+                onPress={() => navigation.navigate('ReconciliationDetail', { batchId: currentBatch.id })}
+                style={styles.reconcileButton}
+              >
+                Reconcile Crates
+              </Button>
+            </>
+          )}
         </Card.Content>
       </Card>
       
@@ -371,6 +412,40 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  qrCard: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.primary,
+  },
+  qrContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  qrIcon: {
+    marginRight: 12,
+  },
+  qrLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  qrCode: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  reconciliationContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  reconciliationIcon: {
+    marginRight: 8,
+  },
+  reconcileButton: {
+    marginTop: 16,
+    backgroundColor: theme.colors.primary,
   },
   header: {
     flexDirection: 'row',

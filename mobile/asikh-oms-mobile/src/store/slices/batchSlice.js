@@ -177,6 +177,20 @@ export const closeBatch = createAsyncThunk(
   }
 );
 
+// Get reconciliation status for a batch
+export const getReconciliationStatus = createAsyncThunk(
+  'batches/getReconciliationStatus',
+  async (batchId, { rejectWithValue }) => {
+    try {
+      return await batchService.getReconciliationStatus(batchId);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to get reconciliation status' }
+      );
+    }
+  }
+);
+
 // Set page for pagination
 export const setPage = createAsyncThunk(
   'batches/setPage',
@@ -397,6 +411,23 @@ const batchSlice = createSlice({
       .addCase(closeBatch.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload || { message: 'An unknown error occurred' };
+      })
+      
+      // Get reconciliation status
+      .addCase(getReconciliationStatus.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getReconciliationStatus.fulfilled, (state, action) => {
+        state.loading = false;
+        if (state.currentBatch && state.currentBatch.id === action.payload.batch_id) {
+          state.currentBatch.reconciliation_status = action.payload.reconciliation_status;
+          state.currentBatch.is_fully_reconciled = action.payload.is_fully_reconciled;
+        }
+      })
+      .addCase(getReconciliationStatus.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || { message: 'Failed to get reconciliation status' };
       })
       
       // Set page
