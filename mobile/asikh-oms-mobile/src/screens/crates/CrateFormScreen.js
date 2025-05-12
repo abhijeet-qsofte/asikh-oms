@@ -1,6 +1,6 @@
 // src/screens/crates/CrateFormScreen.js
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, ScrollView, Alert, Image, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, Alert, Image, Text, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
@@ -12,6 +12,7 @@ import TextInput from '../../components/TextInput';
 import Button from '../../components/Button';
 import { theme } from '../../constants/theme';
 import { createCrate } from '../../store/slices/crateSlice';
+import { getVarieties } from '../../store/slices/adminSlice';
 import { Ionicons } from '@expo/vector-icons';
 
 // Form validation schema
@@ -35,13 +36,30 @@ export default function CrateFormScreen({ route, navigation }) {
   const [location, setLocation] = useState(null);
   const [locationDisplay, setLocationDisplay] = useState('');
   const [photo, setPhoto] = useState(null);
-  const [varieties, setVarieties] = useState([
-    { id: '91c7f473-6be5-4e49-a547-29e4ee53e0ef', name: 'Alphonso' },
-    { id: 'a23fe3c5-4db5-4b9a-b3c5-7f361d6e1f2a', name: 'Langra' },
-    { id: 'b85dfcc1-776f-4908-9db8-8f20dd49a56e', name: 'Kesar' },
-    // In a real app, these would be fetched from the API
-  ]);
+  const [varieties, setVarieties] = useState([]);
+  const [loadingVarieties, setLoadingVarieties] = useState(false);
 
+  // Fetch varieties from the database
+  useEffect(() => {
+    const fetchVarieties = async () => {
+      try {
+        setLoadingVarieties(true);
+        const result = await dispatch(getVarieties());
+        if (result.payload) {
+          console.log('Fetched varieties:', result.payload);
+          setVarieties(result.payload);
+        }
+      } catch (error) {
+        console.error('Error fetching varieties:', error);
+        Alert.alert('Error', 'Failed to load mango varieties');
+      } finally {
+        setLoadingVarieties(false);
+      }
+    };
+    
+    fetchVarieties();
+  }, [dispatch]);
+  
   // Get the user's location on component mount
   useEffect(() => {
     (async () => {
@@ -214,25 +232,40 @@ export default function CrateFormScreen({ route, navigation }) {
               <View style={styles.pickerContainer}>
                 <Text style={styles.pickerLabel}>Variety</Text>
                 <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={values.variety_id}
-                    onValueChange={(itemValue) =>
-                      setFieldValue('variety_id', itemValue)
-                    }
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select variety..." value="" />
-                    {varieties.map((variety) => (
-                      <Picker.Item
-                        key={variety.id}
-                        label={variety.name}
-                        value={variety.id}
-                      />
-                    ))}
-                  </Picker>
+                  {loadingVarieties ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color={theme.colors.primary} />
+                      <Text style={styles.loadingText}>Loading varieties...</Text>
+                    </View>
+                  ) : (
+                    <Picker
+                      selectedValue={values.variety_id}
+                      onValueChange={(itemValue) =>
+                        setFieldValue('variety_id', itemValue)
+                      }
+                      style={styles.picker}
+                      enabled={varieties.length > 0}
+                    >
+                      <Picker.Item label="Select variety..." value="" />
+                      {varieties.length > 0 ? (
+                        varieties.map((variety) => (
+                          <Picker.Item
+                            key={variety.id}
+                            label={variety.name}
+                            value={variety.id}
+                          />
+                        ))
+                      ) : (
+                        <Picker.Item label="No varieties available" value="" />
+                      )}
+                    </Picker>
+                  )}
                 </View>
                 {touched.variety_id && errors.variety_id && (
                   <Text style={styles.errorText}>{errors.variety_id}</Text>
+                )}
+                {!loadingVarieties && varieties.length === 0 && (
+                  <Text style={styles.warningText}>No varieties found. Please contact an administrator.</Text>
                 )}
               </View>
 
@@ -472,6 +505,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 5,
+  },
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 12,
+  },
+  warningText: {
+    color: theme.colors.notification,
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 12,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: theme.colors.primary,
+    fontSize: 14,
   },
   submitButton: {
     marginTop: 20,
