@@ -56,7 +56,7 @@ async def create_farm(
         
         logger.info(f"Farm '{new_farm.name}' created by user {current_user.username}")
         
-        return FarmResponse.from_orm(new_farm)
+        return FarmResponse.model_validate(new_farm, from_attributes=True)
     
     except HTTPException:
         raise
@@ -85,7 +85,7 @@ async def get_farm(
             detail="Farm not found"
         )
     
-    return FarmResponse.from_orm(farm)
+    return FarmResponse.model_validate(farm, from_attributes=True)
 
 @router.get("/", response_model=FarmList)
 async def list_farms(
@@ -122,7 +122,7 @@ async def list_farms(
         total=total_count,
         page=page,
         page_size=page_size,
-        farms=[FarmResponse.from_orm(farm) for farm in farms]
+        farms=[FarmResponse.model_validate(farm, from_attributes=True) for farm in farms]
     )
 
 @router.put("/{farm_id}", response_model=FarmResponse)
@@ -175,7 +175,7 @@ async def update_farm(
         
         logger.info(f"Farm '{farm.name}' updated by user {current_user.username}")
         
-        return FarmResponse.from_orm(farm)
+        return FarmResponse.model_validate(farm, from_attributes=True)
     
     except HTTPException:
         raise

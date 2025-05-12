@@ -200,10 +200,19 @@ export default function BatchScanScreen({ route, navigation }) {
             <Button
               mode="contained"
               onPress={startScanning}
-              style={styles.batchButton}
+              style={[styles.batchButton, { marginBottom: 8 }]}
               icon="qrcode"
             >
-              Scan Crate
+              Scan New Crate
+            </Button>
+            
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('CrateSelection', { batchId: currentBatch.id })}
+              style={styles.batchButton}
+              icon="list"
+            >
+              Select Existing Crate
             </Button>
           </View>
         </Card.Content>
@@ -261,9 +270,20 @@ export default function BatchScanScreen({ route, navigation }) {
           <View style={styles.listContainer}>
             <View style={styles.listHeader}>
               <Text style={styles.listTitle}>Crates in Batch</Text>
-              <TouchableOpacity onPress={startScanning}>
-                <Ionicons name="add-circle" size={28} color={theme.colors.primary} />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate('CrateSelection', { batchId: batchId })}
+                  style={styles.headerAction}
+                >
+                  <Ionicons name="list" size={24} color={theme.colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={startScanning}
+                  style={styles.headerAction}
+                >
+                  <Ionicons name="add-circle" size={28} color={theme.colors.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
             
             {loading ? (
@@ -331,7 +351,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 16,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerAction: {
+    marginLeft: 16,
   },
   listTitle: {
     fontSize: 18,

@@ -20,6 +20,7 @@ import BatchFormScreen from '../screens/batches/BatchFormScreen';
 import BatchDetailScreen from '../screens/batches/BatchDetailScreen';
 import BatchScanScreen from '../screens/batches/BatchScanScreen';
 import BatchListScreen from '../screens/batches/BatchListScreen';
+import CrateSelectionScreen from '../screens/batches/CrateSelectionScreen';
 //import ReconciliationScreen from '../screens/reconciliation/ReconciliationScreen';
 //import ProfileScreen from '../screens/profile/ProfileScreen';
 
@@ -93,6 +94,7 @@ const BatchNavigator = () => (
     <MainStack.Screen name="BatchScan" component={BatchScanScreen} options={{ title: 'Add Crates to Batch' }} />
     <MainStack.Screen name="BatchAssign" component={BatchFormScreen} options={{ title: 'Create Batch' }} />
     <MainStack.Screen name="BatchDetail" component={BatchDetailScreen} options={{ title: 'Batch Details' }} />
+    <MainStack.Screen name="CrateSelection" component={CrateSelectionScreen} options={{ title: 'Select Existing Crate' }} />
   </MainStack.Navigator>
 );
 

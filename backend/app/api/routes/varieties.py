@@ -53,7 +53,7 @@ async def create_variety(
         
         logger.info(f"Variety '{new_variety.name}' created by user {current_user.username}")
         
-        return VarietyResponse.from_orm(new_variety)
+        return VarietyResponse.model_validate(new_variety, from_attributes=True)
     
     except HTTPException:
         raise
@@ -82,7 +82,7 @@ async def get_variety(
             detail="Variety not found"
         )
     
-    return VarietyResponse.from_orm(variety)
+    return VarietyResponse.model_validate(variety, from_attributes=True)
 
 @router.get("/", response_model=VarietyList)
 async def list_varieties(
@@ -118,7 +118,7 @@ async def list_varieties(
         total=total_count,
         page=page,
         page_size=page_size,
-        varieties=[VarietyResponse.from_orm(variety) for variety in varieties]
+        varieties=[VarietyResponse.model_validate(variety, from_attributes=True) for variety in varieties]
     )
 
 @router.put("/{variety_id}", response_model=VarietyResponse)
@@ -159,7 +159,7 @@ async def update_variety(
         
         logger.info(f"Variety '{variety.name}' updated by user {current_user.username}")
         
-        return VarietyResponse.from_orm(variety)
+        return VarietyResponse.model_validate(variety, from_attributes=True)
     
     except HTTPException:
         raise

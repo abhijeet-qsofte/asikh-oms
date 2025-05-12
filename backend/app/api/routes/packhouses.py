@@ -56,7 +56,7 @@ async def create_packhouse(
         
         logger.info(f"Packhouse '{new_packhouse.name}' created by user {current_user.username}")
         
-        return PackhouseResponse.from_orm(new_packhouse)
+        return PackhouseResponse.model_validate(new_packhouse, from_attributes=True)
     
     except HTTPException:
         raise
@@ -85,7 +85,7 @@ async def get_packhouse(
             detail="Packhouse not found"
         )
     
-    return PackhouseResponse.from_orm(packhouse)
+    return PackhouseResponse.model_validate(packhouse, from_attributes=True)
 
 @router.get("/", response_model=PackhouseList)
 async def list_packhouses(
@@ -122,7 +122,7 @@ async def list_packhouses(
         total=total_count,
         page=page,
         page_size=page_size,
-        packhouses=[PackhouseResponse.from_orm(packhouse) for packhouse in packhouses]
+        packhouses=[PackhouseResponse.model_validate(packhouse, from_attributes=True) for packhouse in packhouses]
     )
 
 @router.put("/{packhouse_id}", response_model=PackhouseResponse)
@@ -175,7 +175,7 @@ async def update_packhouse(
         
         logger.info(f"Packhouse '{packhouse.name}' updated by user {current_user.username}")
         
-        return PackhouseResponse.from_orm(packhouse)
+        return PackhouseResponse.model_validate(packhouse, from_attributes=True)
     
     except HTTPException:
         raise

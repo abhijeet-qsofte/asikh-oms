@@ -741,16 +741,24 @@ async def get_batch_stats(
     }
 
 
-@router.post("/{batch_id}/add-crate", response_model=BatchResponse)
+@router.post("/{batch_id}/crates", response_model=BatchResponse)
 async def add_crate_to_batch(
     batch_id: uuid.UUID,
-    qr_code: str,
+    crate_data: dict,
     db: Session = Depends(get_db_dependency),
     current_user: User = Depends(check_user_role(["admin", "supervisor"]))
 ):
     """
     Add a crate to a batch
     """
+    # Extract QR code from request body
+    qr_code = crate_data.get('qr_code')
+    if not qr_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="QR code is required"
+        )
+        
     # Verify batch exists
     batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if not batch:
