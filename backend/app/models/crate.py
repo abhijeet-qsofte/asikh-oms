@@ -1,6 +1,6 @@
 # app/models/crate.py
 import uuid
-from sqlalchemy import Column, String, Float, Text, DateTime, ForeignKey, func, PrimaryKeyConstraint, UniqueConstraint
+from sqlalchemy import Column, String, Float, Text, DateTime, ForeignKey, func, PrimaryKeyConstraint, UniqueConstraint, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 

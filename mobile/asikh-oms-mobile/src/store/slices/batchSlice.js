@@ -163,6 +163,20 @@ export const markBatchArrived = createAsyncThunk(
   }
 );
 
+// Close batch after reconciliation
+export const closeBatch = createAsyncThunk(
+  'batches/close',
+  async (batchId, { rejectWithValue }) => {
+    try {
+      return await batchService.closeBatch(batchId);
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data || { message: 'Failed to close batch' }
+      );
+    }
+  }
+);
+
 // Set page for pagination
 export const setPage = createAsyncThunk(
   'batches/setPage',
@@ -362,7 +376,27 @@ const batchSlice = createSlice({
       })
       .addCase(markBatchArrived.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload;
+        state.error = action.payload || { message: 'An unknown error occurred' };
+      })
+      
+      // Close batch
+      .addCase(closeBatch.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(closeBatch.fulfilled, (state, action) => {
+        state.loading = false;
+        state.success = true;
+        state.currentBatch = action.payload;
+        // Update the batch in the list
+        const index = state.batches.findIndex(batch => batch.id === action.payload.id);
+        if (index !== -1) {
+          state.batches[index] = action.payload;
+        }
+      })
+      .addCase(closeBatch.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || { message: 'An unknown error occurred' };
       })
       
       // Set page

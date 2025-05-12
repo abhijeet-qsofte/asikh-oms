@@ -6,6 +6,11 @@ from typing import Optional, List, Dict
 import uuid
 import logging
 from datetime import datetime
+from collections import defaultdict
+
+# In-memory store for reconciled crates and batch status
+# Format: {batch_id: {"crates": {crate_qr_code: timestamp}, "closed": bool, "closed_at": timestamp, "closed_by": user_id}}
+RECONCILED_CRATES = defaultdict(lambda: {"crates": {}, "closed": False, "closed_at": None, "closed_by": None})
 
 from app.core.database import get_db_dependency
 from app.core.security import get_current_user, check_user_role
@@ -15,6 +20,7 @@ from app.models.crate import Crate
 from app.models.farm import Farm
 from app.models.packhouse import Packhouse
 from app.models.reconciliation import ReconciliationLog
+from app.models.variety import Variety
 from app.schemas.batch import (
     BatchCreate,
     BatchUpdate,
@@ -701,7 +707,7 @@ async def get_batch_stats(
     # Format variety distribution with names
     variety_distribution = {}
     for variety_id, count in variety_counts:
-        variety = db.query(db.Model.varieties).filter(db.Model.varieties.id == variety_id).first()
+        variety = db.query(Variety).filter(Variety.id == variety_id).first()
         variety_name = variety.name if variety else "Unknown"
         variety_distribution[variety_name] = count
     
@@ -808,3 +814,200 @@ async def add_crate_to_batch(
     
     # Return updated batch
     return await get_batch(batch_id, db, current_user)
+
+
+@router.post("/{batch_id}/reconcile", response_model=dict)
+async def reconcile_crate(
+    batch_id: uuid.UUID,
+    crate_data: dict,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "packhouse"]))
+):
+    """
+    Reconcile a crate with a batch
+    """
+    try:
+        # Extract QR code from request body
+        qr_code = crate_data.get('qr_code')
+        if not qr_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="QR code is required"
+            )
+            
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Check if batch is in valid state for reconciliation
+        if batch.status not in ["delivered"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot reconcile crates for batch with status '{batch.status}'. Batch must be delivered."
+            )
+        
+        # Find the crate
+        crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
+        if not crate:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Crate with QR code {qr_code} not found"
+            )
+        
+        # Check if crate is in this batch
+        if crate.batch_id != batch_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Crate {qr_code} is not assigned to this batch"
+            )
+        
+        # Store the reconciliation in our in-memory store
+        batch_id_str = str(batch_id)
+        RECONCILED_CRATES[batch_id_str]["crates"][qr_code] = datetime.utcnow().isoformat()
+        
+        logger.info(f"Crate {qr_code} reconciled with batch {batch.batch_code} by user {current_user.username}")
+        
+        # Get total crates in batch
+        total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
+        
+        # Count reconciled crates from our in-memory store
+        reconciled_crates = len(RECONCILED_CRATES[batch_id_str]["crates"])
+        missing_crates = total_crates - reconciled_crates
+        
+        reconciliation_stats = {
+            "total_crates": total_crates,
+            "reconciled_crates": reconciled_crates,
+            "missing_crates": missing_crates,
+            "reconciliation_percentage": (reconciled_crates / total_crates * 100) if total_crates > 0 else 0
+        }
+        
+        return {
+            "status": "success",
+            "message": f"Crate {qr_code} reconciled with batch {batch.batch_code}",
+            "reconciliation_stats": reconciliation_stats
+        }
+    except Exception as e:
+        logger.error(f"Error reconciling crate: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error reconciling crate: {str(e)}"
+        )
+
+
+@router.get("/{batch_id}/reconciliation-stats", response_model=dict)
+async def get_reconciliation_stats(
+    batch_id: uuid.UUID,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get reconciliation statistics for a batch
+    """
+    try:
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Count total crates in batch
+        total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
+        
+        # Count reconciled crates from our in-memory store
+        batch_id_str = str(batch_id)
+        reconciled_crates = len(RECONCILED_CRATES[batch_id_str]["crates"])
+        
+        # Calculate missing crates
+        missing_crates = total_crates - reconciled_crates
+        
+        # Check if reconciliation is complete
+        is_reconciliation_complete = (reconciled_crates == total_crates) and total_crates > 0
+        
+        # Update batch status in our in-memory store if all crates are reconciled
+        if is_reconciliation_complete and batch.status == "delivered":
+            RECONCILED_CRATES[batch_id_str]["can_close"] = True
+        
+        return {
+            "total_crates": total_crates,
+            "reconciled_crates": reconciled_crates,
+            "missing_crates": missing_crates,
+            "reconciliation_percentage": (reconciled_crates / total_crates * 100) if total_crates > 0 else 0,
+            "is_reconciliation_complete": is_reconciliation_complete
+        }
+    except Exception as e:
+        logger.error(f"Error getting reconciliation stats: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting reconciliation stats: {str(e)}"
+        )
+
+
+@router.post("/{batch_id}/close", response_model=dict)
+async def close_batch(
+    batch_id: uuid.UUID,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "packhouse"]))
+):
+    """
+    Close a batch after reconciliation is complete
+    """
+    try:
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Check if batch is in valid state for closing
+        if batch.status != "delivered":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot close batch with status '{batch.status}'. Batch must be delivered."
+            )
+        
+        # Get reconciliation stats
+        stats = await get_reconciliation_stats(batch_id, db, current_user)
+        
+        # Check if all crates are reconciled
+        if not stats.get("is_reconciliation_complete", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot close batch. All crates must be reconciled first."
+            )
+        
+        # Close the batch
+        batch.status = "closed"
+        
+        # Store closure info in our in-memory store
+        batch_id_str = str(batch_id)
+        RECONCILED_CRATES[batch_id_str]["closed"] = True
+        RECONCILED_CRATES[batch_id_str]["closed_at"] = datetime.utcnow().isoformat()
+        RECONCILED_CRATES[batch_id_str]["closed_by"] = str(current_user.id)
+        
+        db.commit()
+        
+        logger.info(f"Batch {batch.batch_code} closed by user {current_user.username}")
+        
+        return {
+            "status": "success",
+            "message": f"Batch {batch.batch_code} has been closed",
+            "batch_id": str(batch_id),
+            "batch_code": batch.batch_code
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error closing batch: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error closing batch: {str(e)}"
+        )

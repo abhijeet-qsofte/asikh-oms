@@ -3,7 +3,7 @@ import authReducer from './slices/authSlice';
 import crateReducer from './slices/crateSlice';
 import batchReducer from './slices/batchSlice';
 import adminReducer from './slices/adminSlice';
-//import reconciliationReducer from './slices/reconciliationSlice';
+import reconciliationReducer from './slices/reconciliationSlice';
 
 const store = configureStore({
   reducer: {
@@ -11,7 +11,7 @@ const store = configureStore({
     crates: crateReducer,
     batches: batchReducer,
     admin: adminReducer,
-    //reconciliation: reconciliationReducer,
+    reconciliation: reconciliationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -14,29 +14,32 @@ print_header() {
 PROJECT_ROOT="$(pwd)"
 MOBILE_DIR="$PROJECT_ROOT/mobile/asikh-oms-mobile"
 
-# Restart backend API
-print_header "Restarting Backend API"
-echo "Stopping containers..."
+# Check if we're on macOS
+if [[ "$(uname)" != "Darwin" ]]; then
+  echo "This script requires macOS to open separate terminal windows."
+  exit 1
+ fi
+
+# Stop existing Docker containers
+print_header "Stopping existing Docker containers"
 docker-compose down
-echo "Building and starting containers..."
-docker-compose up --build -d
-echo -e "${GREEN}Backend API restarted successfully!${NC}"
 
-# Restart mobile app
-print_header "Restarting Mobile App"
-cd "$MOBILE_DIR"
-echo "Clearing Metro bundler cache..."
-npx expo start --clear --no-dev --minify &
-EXPO_PID=$!
+# Open a new terminal window for backend
+print_header "Starting Backend API in a new terminal"
+osascript -e 'tell application "Terminal"
+    do script "cd '"$PROJECT_ROOT"' && echo \"==== Starting Backend API ====\" && docker-compose up --build"
+end tell'
 
-# Wait for Expo to start
-echo "Waiting for Expo to start..."
-sleep 5
+# Wait a moment for backend to start initializing
+sleep 2
 
-echo -e "${GREEN}Development environment restarted successfully!${NC}"
-echo -e "Backend API is running in Docker"
-echo -e "Mobile app is running with Expo"
-echo -e "\nPress Ctrl+C to stop the Expo server when you're done"
+# Open a new terminal window for frontend
+print_header "Starting Mobile App in a new terminal"
+osascript -e 'tell application "Terminal"
+    do script "cd '"$MOBILE_DIR"' && echo \"==== Starting Mobile App ====\" && npx expo start --clear"
+end tell'
 
-# Keep the script running until user terminates it
-wait $EXPO_PID
+echo -e "${GREEN}Development environment restart initiated!${NC}"
+echo -e "Backend API is running in a separate terminal window"
+echo -e "Mobile app is running in a separate terminal window"
+echo -e "\nCheck the terminal windows for logs and errors"

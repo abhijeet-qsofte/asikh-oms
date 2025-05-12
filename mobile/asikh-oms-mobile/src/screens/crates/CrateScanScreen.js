@@ -13,7 +13,11 @@ export default function CrateScanScreen() {
 
   const handleScan = (qrCode) => {
     setScanning(false);
-    navigation.navigate('CrateForm', { qrCode });
+    // Use the correct navigation approach for nested navigators
+    navigation.navigate('Crates', {
+      screen: 'CrateForm',
+      params: { qrCode }
+    });
   };
 
   const startScanning = () => {
@@ -50,7 +54,10 @@ export default function CrateScanScreen() {
 
             <TouchableOpacity
               style={styles.manualEntry}
-              onPress={() => navigation.navigate('CrateForm', { qrCode: null })}
+              onPress={() => navigation.navigate('Crates', {
+                screen: 'CrateForm',
+                params: { qrCode: null }
+              })}
             >
               <Text style={styles.manualEntryText}>Enter QR Code manually</Text>
             </TouchableOpacity>

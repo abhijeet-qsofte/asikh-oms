@@ -109,7 +109,7 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   markBatchDeparted: async (batchId) => {
-    const response = await apiClient.post(`/api/batches/${batchId}/depart`);
+    const response = await apiClient.patch(`/api/batches/${batchId}/depart`);
     return response.data;
   },
 
@@ -119,8 +119,23 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   markBatchArrived: async (batchId) => {
-    const response = await apiClient.post(`/api/batches/${batchId}/arrive`);
+    const response = await apiClient.patch(`/api/batches/${batchId}/arrive`);
     return response.data;
+  },
+  
+  /**
+   * Close a batch after reconciliation is complete
+   * @param {string} batchId - The batch ID
+   * @returns {Promise} - The API response
+   */
+  closeBatch: async (batchId) => {
+    try {
+      const response = await apiClient.post(`/api/batches/${batchId}/close`);
+      return response.data;
+    } catch (error) {
+      console.error('Error closing batch:', error.response?.data || error.message);
+      throw error;
+    }
   }
 };
 
