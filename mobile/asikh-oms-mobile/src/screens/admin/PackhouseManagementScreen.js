@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { theme } from '../../constants/theme';
-import { getPackhouses, createPackhouse, resetAdminState } from '../../store/slices/adminSlice';
+import { getPackhouses, createPackhouse, updatePackhouse, resetAdminState } from '../../store/slices/adminSlice';
 
 // Validation schema for packhouse form
 const PackhouseSchema = Yup.object().shape({
@@ -35,6 +35,8 @@ export default function PackhouseManagementScreen({ navigation }) {
   
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
   
   // Check if user is admin
   useEffect(() => {
@@ -81,7 +83,31 @@ export default function PackhouseManagementScreen({ navigation }) {
       ...values,
       capacity: Number(values.capacity),
     };
-    dispatch(createPackhouse(packhouseData));
+    
+    if (isEditing && currentItem) {
+      // Update existing packhouse
+      dispatch(updatePackhouse({
+        packhouseId: currentItem.id,
+        packhouseData
+      }));
+    } else {
+      // Create new packhouse
+      dispatch(createPackhouse(packhouseData));
+    }
+  };
+  
+  // Handle edit button press
+  const handleEdit = (item) => {
+    setCurrentItem(item);
+    setIsEditing(true);
+    setModalVisible(true);
+  };
+  
+  // Handle add button press
+  const handleAdd = () => {
+    setCurrentItem(null);
+    setIsEditing(false);
+    setModalVisible(true);
   };
   
   // If not admin, show access denied
@@ -100,7 +126,12 @@ export default function PackhouseManagementScreen({ navigation }) {
   const renderPackhouseItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title style={styles.cardTitle}>{item.name}</Title>
+        <View style={styles.cardHeader}>
+          <Title style={styles.cardTitle}>{item.name}</Title>
+          <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+            <Ionicons name="pencil" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.cardRow}>
           <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
@@ -167,24 +198,36 @@ export default function PackhouseManagementScreen({ navigation }) {
       <FAB
         style={styles.fab}
         icon="plus"
-        onPress={() => setModalVisible(true)}
-        color="#fff"
+        onPress={handleAdd}
+        color="white"
       />
       
       {/* Add Packhouse Modal */}
       <Modal
-        visible={modalVisible}
-        transparent={true}
         animationType="slide"
+        transparent={true}
+        visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {isEditing ? 'Edit Packhouse' : 'Add New Packhouse'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
             <ScrollView>
-              <Text style={styles.modalTitle}>Add New Packhouse</Text>
-              
               <Formik
-                initialValues={{
+                initialValues={isEditing && currentItem ? {
+                  name: currentItem.name,
+                  location: currentItem.location,
+                  contact_person: currentItem.contact_person,
+                  contact_number: currentItem.contact_number,
+                  capacity: currentItem.capacity.toString(),
+                } : {
                   name: '',
                   location: '',
                   contact_person: '',
@@ -193,6 +236,7 @@ export default function PackhouseManagementScreen({ navigation }) {
                 }}
                 validationSchema={PackhouseSchema}
                 onSubmit={handleSubmit}
+                enableReinitialize
               >
                 {({
                   handleChange,
@@ -306,10 +350,18 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+  },
+  editButton: {
+    padding: 5,
   },
   cardRow: {
     flexDirection: 'row',

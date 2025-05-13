@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import { theme } from '../../constants/theme';
-import { getFarms, createFarm, resetAdminState } from '../../store/slices/adminSlice';
+import { getFarms, createFarm, updateFarm, resetAdminState } from '../../store/slices/adminSlice';
 
 // Validation schema for farm form
 const FarmSchema = Yup.object().shape({
@@ -34,6 +34,8 @@ export default function FarmManagementScreen({ navigation }) {
   
   const [modalVisible, setModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentItem, setCurrentItem] = useState(null);
   
   // Check if user is admin
   useEffect(() => {
@@ -75,7 +77,30 @@ export default function FarmManagementScreen({ navigation }) {
   
   // Handle form submission
   const handleSubmit = (values) => {
-    dispatch(createFarm(values));
+    if (isEditing && currentItem) {
+      // Update existing farm
+      dispatch(updateFarm({
+        farmId: currentItem.id,
+        farmData: values
+      }));
+    } else {
+      // Create new farm
+      dispatch(createFarm(values));
+    }
+  };
+  
+  // Handle edit button press
+  const handleEdit = (item) => {
+    setCurrentItem(item);
+    setIsEditing(true);
+    setModalVisible(true);
+  };
+  
+  // Handle add button press
+  const handleAdd = () => {
+    setCurrentItem(null);
+    setIsEditing(false);
+    setModalVisible(true);
   };
   
   // If not admin, show access denied
@@ -94,7 +119,12 @@ export default function FarmManagementScreen({ navigation }) {
   const renderFarmItem = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
-        <Title style={styles.cardTitle}>{item.name}</Title>
+        <View style={styles.cardHeader}>
+          <Title style={styles.cardTitle}>{item.name}</Title>
+          <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+            <Ionicons name="pencil" size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.cardRow}>
           <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
@@ -156,24 +186,35 @@ export default function FarmManagementScreen({ navigation }) {
       <FAB
         style={styles.fab}
         icon="plus"
-        onPress={() => setModalVisible(true)}
-        color="#fff"
+        onPress={handleAdd}
+        color="white"
       />
       
       {/* Add Farm Modal */}
       <Modal
-        visible={modalVisible}
-        transparent={true}
         animationType="slide"
+        transparent={true}
+        visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {isEditing ? 'Edit Farm' : 'Add New Farm'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
             <ScrollView>
-              <Text style={styles.modalTitle}>Add New Farm</Text>
-              
               <Formik
-                initialValues={{
+                initialValues={isEditing && currentItem ? {
+                  name: currentItem.name,
+                  location: currentItem.location,
+                  contact_person: currentItem.contact_person,
+                  contact_number: currentItem.contact_number,
+                } : {
                   name: '',
                   location: '',
                   contact_person: '',
@@ -181,6 +222,7 @@ export default function FarmManagementScreen({ navigation }) {
                 }}
                 validationSchema={FarmSchema}
                 onSubmit={handleSubmit}
+                enableReinitialize
               >
                 {({
                   handleChange,
@@ -281,10 +323,18 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 8,
+  },
+  editButton: {
+    padding: 5,
   },
   cardRow: {
     flexDirection: 'row',
@@ -352,11 +402,18 @@ const styles = StyleSheet.create({
     padding: 16,
     maxHeight: '80%',
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 16,
-    textAlign: 'center',
   },
   input: {
     marginBottom: 8,
