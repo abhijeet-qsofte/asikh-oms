@@ -8,21 +8,50 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch, useSelector } from 'react-redux';
-import { Card, Title, Paragraph, Chip, FAB } from 'react-native-paper';
+import { Card, Title, Paragraph, Chip, FAB, Button, TextInput, Menu, Divider, IconButton, Portal, Dialog, TouchableRipple } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { format } from 'date-fns';
+import { format, addDays, subDays, subMonths, startOfMonth, endOfMonth, isValid } from 'date-fns';
 import { theme } from '../../constants/theme';
 import { TOKEN_KEY } from '../../constants/config';
 import { getBatches, getBatchWeightDetails } from '../../store/slices/batchSlice';
+import { getFarms, getUsers } from '../../store/slices/adminSlice';
 
 export default function BatchListScreen({ navigation }) {
   const dispatch = useDispatch();
   const { batches, loading, pagination, weightDetails, error } = useSelector((state) => state.batches);
-  const { isAuthenticated, token } = useSelector((state) => state.auth);
+  const { isAuthenticated, token, user } = useSelector((state) => state.auth);
+  const { farms, users } = useSelector((state) => state.admin);
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Filter states
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [farmFilter, setFarmFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  
+  // Date filter states
+  const [createdDateFilter, setCreatedDateFilter] = useState(null);
+  const [departedDateFilter, setDepartedDateFilter] = useState(null);
+  const [arrivedDateFilter, setArrivedDateFilter] = useState(null);
+  const [dateDialogVisible, setDateDialogVisible] = useState(false);
+  const [filtersApplied, setFiltersApplied] = useState(false);
+  
+  // Menu visibility states
+  const [statusMenuVisible, setStatusMenuVisible] = useState(false);
+  const [farmMenuVisible, setFarmMenuVisible] = useState(false);
+  const [userMenuVisible, setUserMenuVisible] = useState(false);
+  
+  // Date picker states
+  const [tempYear, setTempYear] = useState(new Date().getFullYear());
+  const [tempMonth, setTempMonth] = useState(new Date().getMonth());
+  const [tempDay, setTempDay] = useState(new Date().getDate());
+  const [datePickerMode, setDatePickerMode] = useState('created'); // 'created', 'departed', or 'arrived'
   
   // Load batches on component mount
   useEffect(() => {
@@ -53,11 +82,51 @@ export default function BatchListScreen({ navigation }) {
     }
   }, [isAuthenticated, token]);
   
+  // Load farms and users for filters
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      dispatch(getFarms());
+      dispatch(getUsers());
+    }
+  }, [isAuthenticated, token]);
+  
+  // Set up navigation header with filter button
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row' }}>
+          <IconButton
+            icon={filtersApplied ? 'filter' : 'filter-outline'}
+            color={filtersApplied ? theme.colors.primary : theme.colors.text}
+            size={24}
+            onPress={toggleFilterModal}
+            style={{ marginRight: 8 }}
+          />
+        </View>
+      ),
+    });
+  }, [navigation, filtersApplied]);
+  
   // Load batches from API
   const loadBatches = async () => {
-    console.log('Dispatching getBatches action...');
+    console.log('Dispatching getBatches action with filters...');
+    
+    // Build filter parameters
+    const params = { page: 1, page_size: 20 };
+    
+    if (statusFilter) params.status = statusFilter;
+    if (farmFilter) params.farm_id = farmFilter;
+    if (userFilter) params.created_by = userFilter;
+    
+    // Add date filters
+    if (createdDateFilter) params.created_date = format(createdDateFilter, 'yyyy-MM-dd');
+    if (departedDateFilter) params.departed_date = format(departedDateFilter, 'yyyy-MM-dd');
+    if (arrivedDateFilter) params.arrived_date = format(arrivedDateFilter, 'yyyy-MM-dd');
+    
+    console.log('Filter params:', params);
+    
     try {
-      const result = await dispatch(getBatches({ page: 1, page_size: 20 }));
+      const result = await dispatch(getBatches(params));
       console.log('getBatches result:', result);
       
       // For each delivered or closed batch, fetch weight details
@@ -87,8 +156,21 @@ export default function BatchListScreen({ navigation }) {
   // Handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
+    
+    // Build filter parameters
+    const params = { page: 1, page_size: 20 };
+    
+    if (statusFilter) params.status = statusFilter;
+    if (farmFilter) params.farm_id = farmFilter;
+    if (userFilter) params.created_by = userFilter;
+    
+    // Add date filters
+    if (createdDateFilter) params.created_date = format(createdDateFilter, 'yyyy-MM-dd');
+    if (departedDateFilter) params.departed_date = format(departedDateFilter, 'yyyy-MM-dd');
+    if (arrivedDateFilter) params.arrived_date = format(arrivedDateFilter, 'yyyy-MM-dd');
+    
     try {
-      const result = await dispatch(getBatches({ page: 1, page_size: 20 }));
+      const result = await dispatch(getBatches(params));
       
       // For each delivered or closed batch, fetch weight details
       if (result && result.payload && result.payload.batches) {
@@ -129,6 +211,149 @@ export default function BatchListScreen({ navigation }) {
   // Handle receive batch button press
   const handleReceiveBatch = () => {
     navigation.navigate('BatchReceiveScreen');
+  };
+  
+  // Toggle filter modal
+  const toggleFilterModal = () => {
+    setFilterVisible(!filterVisible);
+  };
+  
+  // Apply filters
+  const applyFilters = () => {
+    setFiltersApplied(true);
+    setFilterVisible(false);
+    loadBatches();
+  };
+  
+  // Reset filters
+  const resetFilters = () => {
+    setStatusFilter('');
+    setFarmFilter('');
+    setUserFilter('');
+    setCreatedDateFilter(null);
+    setDepartedDateFilter(null);
+    setArrivedDateFilter(null);
+    setFiltersApplied(false);
+    setFilterVisible(false);
+    
+    // Reload batches without filters
+    dispatch(getBatches({ page: 1, page_size: 20 }));
+  };
+  
+  // Handle date picker dialog
+  const showDatePicker = (mode) => {
+    // Set current date values based on existing filter or current date
+    let date;
+    switch(mode) {
+      case 'created':
+        date = createdDateFilter || new Date();
+        break;
+      case 'departed':
+        date = departedDateFilter || new Date();
+        break;
+      case 'arrived':
+        date = arrivedDateFilter || new Date();
+        break;
+      default:
+        date = new Date();
+    }
+    
+    setTempYear(date.getFullYear());
+    setTempMonth(date.getMonth());
+    setTempDay(date.getDate());
+    setDatePickerMode(mode);
+    setDateDialogVisible(true);
+  };
+  
+  // Handle date selection
+  const handleDateConfirm = () => {
+    const selectedDate = new Date(tempYear, tempMonth, tempDay);
+    
+    if (isValid(selectedDate)) {
+      switch(datePickerMode) {
+        case 'created':
+          setCreatedDateFilter(selectedDate);
+          break;
+        case 'departed':
+          setDepartedDateFilter(selectedDate);
+          break;
+        case 'arrived':
+          setArrivedDateFilter(selectedDate);
+          break;
+      }
+      setDateDialogVisible(false);
+    }
+  };
+  
+  // Generate month options for picker
+  const getMonthOptions = () => {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    return months.map((month, index) => (
+      <Menu.Item 
+        key={index} 
+        onPress={() => setTempMonth(index)}
+        title={month}
+        style={tempMonth === index ? { backgroundColor: theme.colors.primaryContainer } : {}}
+      />
+    ));
+  };
+  
+  // Generate day options for picker
+  const getDayOptions = () => {
+    const daysInMonth = new Date(tempYear, tempMonth + 1, 0).getDate();
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    
+    return days.map(day => (
+      <TouchableRipple
+        key={day}
+        onPress={() => setTempDay(day)}
+        style={[styles.dayButton, tempDay === day ? styles.selectedDay : {}]}
+      >
+        <Text style={tempDay === day ? styles.selectedDayText : {}}>{day}</Text>
+      </TouchableRipple>
+    ));
+  };
+  
+  // Quick date selection options
+  const setQuickDate = (option) => {
+    const today = new Date();
+    let selectedDate;
+    
+    switch(option) {
+      case 'today':
+        selectedDate = today;
+        break;
+      case 'yesterday':
+        selectedDate = subDays(today, 1);
+        break;
+      case 'lastWeek':
+        selectedDate = subDays(today, 7);
+        break;
+      case 'lastMonth':
+        selectedDate = startOfMonth(subMonths(today, 1));
+        break;
+      default:
+        selectedDate = today;
+    }
+    
+    // Set the date based on the current mode
+    switch(datePickerMode) {
+      case 'created':
+        setCreatedDateFilter(selectedDate);
+        break;
+      case 'departed':
+        setDepartedDateFilter(selectedDate);
+        break;
+      case 'arrived':
+        setArrivedDateFilter(selectedDate);
+        break;
+    }
+    
+    setDateDialogVisible(false);
   };
   
   // Get status badge color
@@ -292,6 +517,20 @@ export default function BatchListScreen({ navigation }) {
         </View>
       )}
       
+      {filtersApplied && (
+        <View style={styles.activeFiltersContainer}>
+          <Text style={styles.activeFiltersText}>Filters applied</Text>
+          <Button 
+            mode="text" 
+            compact 
+            onPress={resetFilters}
+            style={styles.clearButton}
+          >
+            Clear
+          </Button>
+        </View>
+      )}
+      
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -310,12 +549,363 @@ export default function BatchListScreen({ navigation }) {
         />
       )}
       
+      {/* Filter Modal */}
+      <Modal
+        visible={filterVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setFilterVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Batches</Text>
+              <IconButton
+                icon="close"
+                size={24}
+                onPress={() => setFilterVisible(false)}
+              />
+            </View>
+            
+            <ScrollView>
+              {/* Status Filter */}
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Status:</Text>
+                <TouchableOpacity 
+                  style={styles.compactPickerButton}
+                  onPress={() => setStatusMenuVisible(true)}
+                >
+                  <Text style={styles.pickerButtonText}>
+                    {statusFilter ? statusFilter.replace('_', ' ').toUpperCase() : 'Select Status'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Status Dropdown Modal */}
+              <Modal
+                visible={statusMenuVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setStatusMenuVisible(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.dropdownOverlay}
+                  activeOpacity={1}
+                  onPress={() => setStatusMenuVisible(false)}
+                >
+                  <View style={styles.dropdownContainer}>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>All Statuses</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('open');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>Open</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('in_transit');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>In Transit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('delivered');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>Delivered</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('closed');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>Closed</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setStatusFilter('cancelled');
+                      setStatusMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>Cancelled</Text>
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+              
+              {/* Farm Filter */}
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Farm:</Text>
+                <TouchableOpacity 
+                  style={styles.compactPickerButton}
+                  onPress={() => setFarmMenuVisible(true)}
+                >
+                  <Text style={styles.pickerButtonText}>
+                    {farmFilter ? farms.find(f => f.id === farmFilter)?.name || 'Select Farm' : 'Select Farm'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Farm Dropdown Modal */}
+              <Modal
+                visible={farmMenuVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setFarmMenuVisible(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.dropdownOverlay}
+                  activeOpacity={1}
+                  onPress={() => setFarmMenuVisible(false)}
+                >
+                  <View style={styles.dropdownContainer}>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setFarmFilter('');
+                      setFarmMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>All Farms</Text>
+                    </TouchableOpacity>
+                    <View style={styles.dropdownDivider} />
+                    {farms.map(farm => (
+                      <TouchableOpacity 
+                        key={farm.id} 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setFarmFilter(farm.id);
+                          setFarmMenuVisible(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>{farm.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+              
+              {/* User Filter */}
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Created By:</Text>
+                <TouchableOpacity 
+                  style={styles.compactPickerButton}
+                  onPress={() => setUserMenuVisible(true)}
+                >
+                  <Text style={styles.pickerButtonText}>
+                    {userFilter ? users.find(u => u.id === userFilter)?.full_name || 'Select User' : 'Select User'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* User Dropdown Modal */}
+              <Modal
+                visible={userMenuVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setUserMenuVisible(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.dropdownOverlay}
+                  activeOpacity={1}
+                  onPress={() => setUserMenuVisible(false)}
+                >
+                  <View style={styles.dropdownContainer}>
+                    <TouchableOpacity style={styles.dropdownItem} onPress={() => {
+                      setUserFilter('');
+                      setUserMenuVisible(false);
+                    }}>
+                      <Text style={styles.dropdownItemText}>All Users</Text>
+                    </TouchableOpacity>
+                    <View style={styles.dropdownDivider} />
+                    {users.map(user => (
+                      <TouchableOpacity 
+                        key={user.id} 
+                        style={styles.dropdownItem}
+                        onPress={() => {
+                          setUserFilter(user.id);
+                          setUserMenuVisible(false);
+                        }}
+                      >
+                        <Text style={styles.dropdownItemText}>{user.full_name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+              
+              {/* Date Filters */}
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Created:</Text>
+                <TouchableOpacity 
+                  style={styles.compactDateButton}
+                  onPress={() => showDatePicker('created')}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {createdDateFilter ? format(new Date(createdDateFilter), 'MMM d, yyyy') : 'Select Date'}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Departed:</Text>
+                <TouchableOpacity 
+                  style={styles.compactDateButton}
+                  onPress={() => showDatePicker('departed')}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {departedDateFilter ? format(new Date(departedDateFilter), 'MMM d, yyyy') : 'Select Date'}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.compactFilterRow}>
+                <Text style={styles.compactFilterLabel}>Arrived:</Text>
+                <TouchableOpacity 
+                  style={styles.compactDateButton}
+                  onPress={() => showDatePicker('arrived')}
+                >
+                  <Text style={styles.dateButtonText}>
+                    {arrivedDateFilter ? format(new Date(arrivedDateFilter), 'MMM d, yyyy') : 'Select Date'}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={16} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.filterButtonContainer}>
+                <Button 
+                  mode="outlined" 
+                  onPress={resetFilters}
+                  style={styles.filterButton}
+                >
+                  Reset
+                </Button>
+                <Button 
+                  mode="contained" 
+                  onPress={applyFilters}
+                  style={styles.filterButton}
+                >
+                  Apply
+                </Button>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      
       <FAB
         style={styles.fab}
         icon="plus"
         onPress={handleCreateBatch}
         color="#fff"
       />
+      
+      {/* Date Picker Dialog */}
+      <Modal
+        visible={dateDialogVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDateDialogVisible(false)}
+      >
+        <View style={styles.datePickerOverlay}>
+          <View style={styles.datePickerContainer}>
+            <View style={styles.datePickerHeader}>
+              <Text style={styles.datePickerTitle}>
+                {datePickerMode === 'created' ? 'Select Created Date' : 
+                 datePickerMode === 'departed' ? 'Select Departed Date' : 'Select Arrived Date'}
+              </Text>
+              <TouchableOpacity onPress={() => setDateDialogVisible(false)}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.datePickerScrollView}>
+              {/* Quick Date Options */}
+              <View style={styles.quickDateButtons}>
+                <TouchableOpacity 
+                  style={styles.quickDateButton} 
+                  onPress={() => setQuickDate('today')}
+                >
+                  <Text style={styles.quickDateText}>Today</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.quickDateButton} 
+                  onPress={() => setQuickDate('yesterday')}
+                >
+                  <Text style={styles.quickDateText}>Yesterday</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.quickDateButton} 
+                  onPress={() => setQuickDate('lastWeek')}
+                >
+                  <Text style={styles.quickDateText}>Last Week</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.quickDateButton} 
+                  onPress={() => setQuickDate('lastMonth')}
+                >
+                  <Text style={styles.quickDateText}>Last Month</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.dateInputRow}>
+                <Text style={styles.dateInputLabel}>Year:</Text>
+                <TextInput
+                  mode="outlined"
+                  value={tempYear.toString()}
+                  onChangeText={(text) => {
+                    const year = parseInt(text);
+                    if (!isNaN(year) && year > 1900 && year < 2100) {
+                      setTempYear(year);
+                    }
+                  }}
+                  keyboardType="number-pad"
+                  style={styles.yearInput}
+                  dense
+                />
+              </View>
+              
+              {/* Month Selector */}
+              <View style={styles.monthPickerContainer}>
+                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => (
+                  <TouchableOpacity 
+                    key={index}
+                    style={[styles.monthButton, tempMonth === index ? styles.selectedMonth : {}]}
+                    onPress={() => setTempMonth(index)}
+                  >
+                    <Text style={[styles.monthText, tempMonth === index ? styles.selectedMonthText : {}]}>{month}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Day Selector */}
+              <View style={styles.dayPickerContainer}>
+                {getDayOptions()}
+              </View>
+            </ScrollView>
+            
+            <View style={styles.datePickerActions}>
+              <Button 
+                mode="text" 
+                onPress={() => setDateDialogVisible(false)}
+                style={styles.datePickerButton}
+              >
+                Cancel
+              </Button>
+              <Button 
+                mode="contained" 
+                onPress={handleDateConfirm}
+                style={styles.datePickerButton}
+              >
+                OK
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -355,9 +945,47 @@ const styles = StyleSheet.create({
     height: 28,
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 16,
+    color: theme.colors.text,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    color: theme.colors.placeholder,
+  },
+  errorContainer: {
+    backgroundColor: theme.colors.errorContainer,
+    padding: 16,
+    margin: 16,
+    borderRadius: 8,
+  },
+  errorText: {
+    color: theme.colors.error,
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: theme.colors.primary,
   },
   fab: {
     position: 'absolute',
@@ -366,41 +994,301 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: theme.colors.primary,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  // Filter styles
+  activeFiltersContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    marginTop: 100,
+    backgroundColor: theme.colors.primaryContainer,
+    padding: 8,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
-  emptyText: {
-    fontSize: 18,
+  activeFiltersText: {
+    color: theme.colors.primary,
     fontWeight: 'bold',
-    marginTop: 16,
-    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 14,
-    color: theme.colors.placeholder,
-    textAlign: 'center',
-    marginTop: 8,
+  clearButton: {
+    marginLeft: 8,
   },
-  errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: 12,
-    margin: 16,
-    borderRadius: 4,
-  },
-  errorText: {
-    color: theme.colors.error,
-  },
-  loadingContainer: {
+  modalContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  loadingText: {
-    marginTop: 8,
+  modalContent: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 16,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: theme.colors.primary,
   },
+  filterLabel: {
+    fontSize: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  dateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 12,
+  },
+  fullWidthDateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 16,
+  },
+  dateButtonText: {
+    fontSize: 16,
+  },
+  dateToText: {
+    marginHorizontal: 8,
+  },
+  dialogContainer: {
+    zIndex: 1000,
+    elevation: 5,
+  },
+  filterButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  filterButton: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  // Compact filter styles
+  compactFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  compactFilterLabel: {
+    fontSize: 14,
+    width: 80,
+  },
+  compactPickerButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 8,
+  },
+  compactDateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 8,
+  },
+  // Dropdown styles
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  dropdownContainer: {
+    width: '80%',
+    maxHeight: '70%',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 4,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: theme.colors.outline,
+    marginVertical: 8,
+  },
+  // Date picker dialog styles
+  datePickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  datePickerContainer: {
+    width: '90%',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    padding: 16,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.34,
+    shadowRadius: 6.27,
+    maxHeight: '80%',
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  datePickerScrollView: {
+    maxHeight: 400,
+  },
+  dateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  dateInputLabel: {
+    fontSize: 14,
+    width: 50,
+  },
+  datePickerActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  datePickerButton: {
+    marginLeft: 8,
+  },
+  datePickerLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  yearInput: {
+    marginLeft: 8,
+    width: 100,
+    height: 40,
+  },
+  monthPickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 8,
+    marginBottom: 16,
+  },
+  monthButton: {
+    width: '25%',
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 2,
+    borderRadius: 4,
+  },
+  selectedMonth: {
+    backgroundColor: theme.colors.primary,
+  },
+  selectedMonthText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  menuHeader: {
+    backgroundColor: theme.colors.surfaceVariant,
+  },
+  dayPickerContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.outline,
+    borderRadius: 4,
+    padding: 8,
+  },
+  dayButton: {
+    width: '14.28%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 2,
+    borderRadius: 20,
+  },
+  selectedDay: {
+    backgroundColor: theme.colors.primary,
+  },
+  selectedDayText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  quickDateContainer: {
+    marginTop: 16,
+  },
+  quickDateButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  quickDateButton: {
+    marginBottom: 8,
+    marginRight: 8,
+  },
 });
+
+// ... (rest of the code remains the same)
