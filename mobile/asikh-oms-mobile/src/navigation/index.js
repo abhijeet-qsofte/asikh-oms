@@ -68,13 +68,20 @@ const TabNavigator = () => (
 
         return <Ionicons name={iconName} size={size} color={color} />;
       },
+      headerShown: true,
     })}
   >
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Crates" component={CrateNavigator} />
     <Tab.Screen name="Batches" component={BatchNavigator} />
     <Tab.Screen name="Reconcile" component={ReconciliationNavigator} />
-    <Tab.Screen name="Admin" component={AdminNavigator} />
+    <Tab.Screen 
+      name="Admin" 
+      component={AdminNavigator} 
+      options={{ 
+        headerShown: false 
+      }} 
+    />
     {/* <Tab.Screen name="Profile" component={ProfileScreen} /> */}
   </Tab.Navigator>
 );
@@ -174,7 +181,12 @@ const ReconciliationNavigator = () => (
 
 // Admin Flow
 const AdminNavigator = () => (
-  <AdminStack.Navigator>
+  <AdminStack.Navigator
+    screenOptions={{
+      headerShown: true,
+      headerBackTitleVisible: false,
+    }}
+  >
     <AdminStack.Screen
       name="AdminDashboard"
       component={AdminDashboardScreen}

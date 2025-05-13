@@ -9,6 +9,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from app.core.database import get_db_dependency
+from app.core.config import settings
 from app.core.security import (
     get_current_user, 
     get_password_hash, 
@@ -23,6 +24,8 @@ from app.schemas.user import (
     UserList,
     UserPasswordChange
 )
+from pydantic import BaseModel
+from typing import List as TypeList
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -372,3 +375,86 @@ async def admin_reset_password(
         **user.__dict__,
         "temporary_password": temp_password
     }
+
+
+# Role management schemas
+class RoleList(BaseModel):
+    roles: TypeList[str]
+
+
+class RoleCreate(BaseModel):
+    role: str
+
+
+@router.get("/roles", response_model=RoleList)
+async def get_roles(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all available roles in the system
+    """
+    return {"roles": settings.ALLOWED_ROLES}
+
+
+@router.post("/roles", response_model=RoleList, status_code=status.HTTP_201_CREATED)
+async def add_role(
+    role_data: RoleCreate,
+    current_user: User = Depends(check_user_role(["admin"]))
+):
+    """
+    Add a new role to the system
+    Admin only endpoint
+    """
+    # Check if role already exists
+    if role_data.role in settings.ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Role already exists"
+        )
+    
+    # Add the new role
+    settings.ALLOWED_ROLES.append(role_data.role)
+    
+    logger.info(f"New role '{role_data.role}' added by {current_user.username}")
+    
+    return {"roles": settings.ALLOWED_ROLES}
+
+
+@router.delete("/roles/{role_name}", response_model=RoleList)
+async def delete_role(
+    role_name: str,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(check_user_role(["admin"]))
+):
+    """
+    Delete a role from the system
+    Admin only endpoint
+    """
+    # Check if role exists
+    if role_name not in settings.ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Role not found"
+        )
+    
+    # Check if role is in use
+    users_with_role = db.query(User).filter(User.role == role_name).count()
+    if users_with_role > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete role '{role_name}' as it is assigned to {users_with_role} users"
+        )
+    
+    # Check if it's the admin role
+    if role_name == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete the 'admin' role as it is a system role"
+        )
+    
+    # Remove the role
+    settings.ALLOWED_ROLES.remove(role_name)
+    
+    logger.info(f"Role '{role_name}' deleted by {current_user.username}")
+    
+    return {"roles": settings.ALLOWED_ROLES}

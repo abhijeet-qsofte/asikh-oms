@@ -34,7 +34,7 @@ async def create_crate(
     crate_data: CrateCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor", "manager"]))
 ):
     """
     Create a new crate record with harvesting data
@@ -243,7 +243,7 @@ async def update_crate(
     crate_id: uuid.UUID,
     crate_data: CrateUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor", "manager"]))
 ):
     """
     Update a crate's details
@@ -314,7 +314,7 @@ async def update_crate(
 async def assign_crate_to_batch(
     assignment: CrateBatchAssign,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Assign a crate to a batch

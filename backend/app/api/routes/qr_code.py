@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 async def create_qr_code(
     qr_data: QRCodeCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Create a new QR code
@@ -205,7 +205,7 @@ async def update_qr_code(
     qr_id: uuid.UUID,
     qr_data: QRCodeUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Update a QR code's status or entity type
@@ -246,7 +246,7 @@ async def update_qr_code(
 async def create_qr_code_batch(
     batch_data: QRCodeBatch,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Generate a batch of QR codes
@@ -321,7 +321,7 @@ async def download_qr_codes(
     qr_ids: List[uuid.UUID],
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Generate a ZIP file containing QR code images for the specified QR codes

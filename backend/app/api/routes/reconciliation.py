@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 async def scan_crate(
     scan_data: ReconciliationScan,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor", "manager"]))
 ):
     """
     Scan a crate for reconciliation at the packhouse
@@ -481,7 +481,7 @@ async def search_reconciliation_logs(
 async def get_reconciliation_stats(
     days: int = Query(7, ge=1, le=30),
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Get overall reconciliation statistics
@@ -586,7 +586,7 @@ async def get_reconciliation_stats(
 async def complete_batch_reconciliation(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor", "manager"]))
 ):
     """
     Manually mark a batch as reconciled

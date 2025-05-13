@@ -141,7 +141,7 @@ async def get_batch_reconciliation_status(
 async def create_batch(
     batch_data: BatchCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Create a new batch
@@ -490,7 +490,7 @@ async def update_batch(
     batch_id: uuid.UUID,
     batch_data: BatchUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Update a batch
@@ -617,7 +617,7 @@ async def update_batch(
 async def mark_batch_departed(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Mark a batch as departed (in_transit)
@@ -913,7 +913,7 @@ async def add_crate_to_batch(
     batch_id: uuid.UUID,
     crate_data: dict,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor"]))
+    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
 ):
     """
     Add a crate to a batch

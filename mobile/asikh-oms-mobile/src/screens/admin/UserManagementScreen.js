@@ -22,14 +22,27 @@ import { Picker } from '@react-native-picker/picker';
 
 // Validation schema for user form
 const UserSchema = Yup.object().shape({
-  username: Yup.string().required('Username is required'),
-  email: Yup.string().email('Invalid email').required('Email is required'),
+  username: Yup.string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(100, 'Username must be less than 100 characters')
+    .required('Username is required'),
+  email: Yup.string()
+    .email('Invalid email format')
+    .max(100, 'Email must be less than 100 characters')
+    .required('Email is required'),
   password: Yup.string()
     .min(8, 'Password must be at least 8 characters')
+    .matches(/[0-9]/, 'Password must contain at least one digit')
+    .matches(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .required('Password is required'),
-  full_name: Yup.string().required('Full name is required'),
-  role: Yup.string().required('Role is required'),
-  phone_number: Yup.string().required('Phone number is required'),
+  full_name: Yup.string()
+    .max(100, 'Full name must be less than 100 characters')
+    .required('Full name is required'),
+  role: Yup.string()
+    .required('Role is required'),
+  phone_number: Yup.string()
+    .matches(/^\+?[0-9]{10,15}$/, 'Phone number must be 10-15 digits with optional + prefix')
+    .required('Phone number is required'),
 });
 
 export default function UserManagementScreen({ navigation }) {
@@ -44,9 +57,10 @@ export default function UserManagementScreen({ navigation }) {
   // Role options
   const roleList = [
     { label: 'Admin', value: 'admin' },
+    { label: 'Harvester', value: 'harvester' },
+    { label: 'Supervisor', value: 'supervisor' },
+    { label: 'Packhouse', value: 'packhouse' },
     { label: 'Manager', value: 'manager' },
-    { label: 'Worker', value: 'worker' },
-    { label: 'Driver', value: 'driver' },
   ];
   
   // Check if user is admin
@@ -96,15 +110,17 @@ export default function UserManagementScreen({ navigation }) {
   const getRoleColor = (role) => {
     switch (role) {
       case 'admin':
-        return '#f44336';
+        return '#f44336'; // Red
+      case 'harvester':
+        return '#4caf50'; // Green
+      case 'supervisor':
+        return '#9c27b0'; // Purple
+      case 'packhouse':
+        return '#ff9800'; // Orange
       case 'manager':
-        return '#2196f3';
-      case 'worker':
-        return '#4caf50';
-      case 'driver':
-        return '#ff9800';
+        return '#2196f3'; // Blue
       default:
-        return '#9e9e9e';
+        return '#9e9e9e'; // Grey
     }
   };
   
@@ -240,6 +256,7 @@ export default function UserManagementScreen({ navigation }) {
                       onBlur={handleBlur('full_name')}
                       error={touched.full_name && errors.full_name}
                       style={styles.input}
+                      placeholder="Enter full name (max 100 characters)"
                     />
                     {touched.full_name && errors.full_name && (
                       <Text style={styles.errorText}>{errors.full_name}</Text>
@@ -252,6 +269,7 @@ export default function UserManagementScreen({ navigation }) {
                       onBlur={handleBlur('username')}
                       error={touched.username && errors.username}
                       style={styles.input}
+                      placeholder="Enter username (3-100 characters)"
                     />
                     {touched.username && errors.username && (
                       <Text style={styles.errorText}>{errors.username}</Text>
@@ -265,6 +283,7 @@ export default function UserManagementScreen({ navigation }) {
                       error={touched.email && errors.email}
                       keyboardType="email-address"
                       style={styles.input}
+                      placeholder="Enter valid email address"
                     />
                     {touched.email && errors.email && (
                       <Text style={styles.errorText}>{errors.email}</Text>
@@ -278,9 +297,13 @@ export default function UserManagementScreen({ navigation }) {
                       error={touched.password && errors.password}
                       secureTextEntry
                       style={styles.input}
+                      placeholder="Min 8 chars, 1 digit, 1 uppercase letter"
                     />
                     {touched.password && errors.password && (
                       <Text style={styles.errorText}>{errors.password}</Text>
+                    )}
+                    {!touched.password && (
+                      <Text style={styles.helperText}>Password must contain at least 8 characters, 1 digit, and 1 uppercase letter</Text>
                     )}
                     
                     <Text style={styles.label}>Role</Text>
@@ -308,10 +331,16 @@ export default function UserManagementScreen({ navigation }) {
                       error={touched.phone_number && errors.phone_number}
                       keyboardType="phone-pad"
                       style={styles.input}
+                      placeholder="Enter 10-15 digits with optional + prefix"
                     />
                     {touched.phone_number && errors.phone_number && (
                       <Text style={styles.errorText}>{errors.phone_number}</Text>
                     )}
+                    {!touched.phone_number && (
+                      <Text style={styles.helperText}>Phone number must be 10-15 digits with an optional + prefix</Text>
+                    )}
+                    
+
                     
                     <View style={styles.buttonContainer}>
                       <Button
@@ -411,6 +440,12 @@ const styles = StyleSheet.create({
   errorText: {
     color: theme.colors.error,
     fontSize: 12,
+    marginBottom: 8,
+  },
+  helperText: {
+    color: theme.colors.placeholder,
+    fontSize: 12,
+    marginBottom: 8,
   },
   loadingContainer: {
     flex: 1,

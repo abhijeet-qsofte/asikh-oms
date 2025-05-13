@@ -92,5 +92,12 @@ class Settings(BaseSettings):
     # Mobile app settings
     MIN_MOBILE_APP_VERSION: str = "1.0.0"
     FORCE_UPGRADE_VERSION: str = "0.9.0"
+    
+    # User role settings
+    ALLOWED_ROLES: List[str] = ["admin", "harvester", "supervisor", "packhouse", "manager"]
 
 settings = Settings()
+
+def get_settings():
+    """Function to get the settings instance"""
+    return settings

@@ -16,7 +16,9 @@ class UserBase(BaseModel):
     
     @validator('role')
     def validate_role(cls, v):
-        allowed_roles = ['admin', 'harvester', 'supervisor', 'packhouse']
+        from app.core.config import get_settings
+        settings = get_settings()
+        allowed_roles = settings.ALLOWED_ROLES
         if v not in allowed_roles:
             raise ValueError(f'Role must be one of {allowed_roles}')
         return v
@@ -56,7 +58,9 @@ class UserUpdate(BaseModel):
     @validator('role')
     def validate_role(cls, v):
         if v is not None:
-            allowed_roles = ['admin', 'harvester', 'supervisor', 'packhouse']
+            from app.core.config import get_settings
+            settings = get_settings()
+            allowed_roles = settings.ALLOWED_ROLES
             if v not in allowed_roles:
                 raise ValueError(f'Role must be one of {allowed_roles}')
         return v
