@@ -22,7 +22,7 @@ from app.api.routes.farms import router as farms_router
 from app.api.routes.packhouses import router as packhouses_router
 from app.api.routes.varieties import router as varieties_router
 
-# Configure logging
+# Configure logging - test change
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL),
     format=settings.LOG_FORMAT
