@@ -41,6 +41,12 @@ jobs:
           pip install -r requirements.txt
           
       - name: Run tests
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: asikh_oms
+          POSTGRES_PORT: 5432
         run: |
           cd backend
           pytest -v
