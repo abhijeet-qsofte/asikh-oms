@@ -1,0 +1,55 @@
+name: Build Mobile App for Test Environment
+
+on:
+  push:
+    branches:
+      - develop  # Trigger on push to develop branch
+    paths:
+      - 'mobile/**'  # Only trigger when changes are made to mobile files
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'mobile/asikh-oms-mobile/package-lock.json'
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli eas-cli
+
+      - name: Install dependencies
+        run: |
+          cd mobile/asikh-oms-mobile
+          npm ci
+
+      - name: Update config to use test environment
+        run: |
+          cd mobile/asikh-oms-mobile
+          # Ensure the environment is set to 'test' in the config file
+          sed -i 's/const CURRENT_ENV = .*/const CURRENT_ENV = '"'"'test'"'"';/' src/constants/config.js
+
+      - name: Run tests
+        run: |
+          cd mobile/asikh-oms-mobile
+          npm test
+
+      - name: Build app for testing
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          cd mobile/asikh-oms-mobile
+          eas build --platform android --profile preview --non-interactive
+          
+      - name: Create build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-build
+          path: mobile/asikh-oms-mobile/build
+          retention-days: 5

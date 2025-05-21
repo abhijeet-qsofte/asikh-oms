@@ -1,0 +1,45 @@
+name: Deploy Backend to Heroku Test
+
+on:
+  push:
+    branches:
+      - develop  # Trigger deployment on push to develop branch
+    paths:
+      - 'backend/**'  # Only trigger when changes are made to backend files
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.6'  # Match the version in runtime.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run tests
+        run: |
+          cd backend
+          pytest -v
+
+      - name: Deploy to Heroku
+        uses: akhileshns/heroku-deploy@v3.12.14
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: "asikh-oms-test"  # Your Heroku app name
+          heroku_email: ${{ secrets.HEROKU_EMAIL }}
+          appdir: "backend"  # Specify the directory containing your backend code
+          
+      - name: Run database migrations
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          heroku run "cd /app && alembic upgrade head" --app asikh-oms-test
