@@ -40,7 +40,18 @@ jobs:
           cd mobile/asikh-oms-mobile
           npm test
 
+      - name: Check for Expo token
+        id: check-token
+        run: |
+          if [ -n "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "Skipping Expo build because EXPO_TOKEN is not set. Add this secret to enable mobile app builds."
+          fi
+
       - name: Build app for testing
+        if: steps.check-token.outputs.has_token == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
@@ -48,6 +59,7 @@ jobs:
           eas build --platform android --profile preview --non-interactive
           
       - name: Create build artifacts
+        if: steps.check-token.outputs.has_token == 'true'
         uses: actions/upload-artifact@v3
         with:
           name: app-build
