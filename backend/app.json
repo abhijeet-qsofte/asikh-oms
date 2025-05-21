@@ -1,0 +1,26 @@
+{
+  "name": "Asikh OMS API",
+  "description": "Order Management System API for Asikh",
+  "repository": "https://github.com/abhijeet-qsofte/asikh-oms",
+  "keywords": ["python", "fastapi", "api", "order-management"],
+  "addons": ["heroku-postgresql:essential-0"],
+  "env": {
+    "DEBUG": {
+      "description": "Enable debug mode",
+      "value": "True"
+    },
+    "LOG_LEVEL": {
+      "description": "Logging level",
+      "value": "DEBUG"
+    },
+    "SECRET_KEY": {
+      "description": "Secret key for JWT token generation",
+      "generator": "secret"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ]
+}
