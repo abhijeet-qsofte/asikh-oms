@@ -40,14 +40,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      # Tests temporarily disabled
-      # - name: Run tests
-      #   run: |
-      #     cd backend
-      #     pytest -v
-      
-      - name: Skip tests message
-        run: echo "Skipping tests for now and proceeding with deployment"
+      # Test stage removed
 
       - name: Deploy to Heroku
         uses: akhileshns/heroku-deploy@v3.12.12
