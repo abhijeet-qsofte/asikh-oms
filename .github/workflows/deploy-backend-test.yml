@@ -40,13 +40,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
+      - name: Setup test environment
+        run: |
+          # Create .env.test file with CI database settings
+          cat > .env.test << EOF
+          POSTGRES_SERVER=localhost
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_DB=asikh_oms
+          POSTGRES_PORT=5432
+          # Add any other required environment variables
+          SECRET_KEY=testsecretkey
+          ACCESS_TOKEN_EXPIRE_MINUTES=60
+          REFRESH_TOKEN_EXPIRE_MINUTES=1440
+          EOF
+          
       - name: Run tests
-        env:
-          POSTGRES_SERVER: localhost
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: asikh_oms
-          POSTGRES_PORT: 5432
         run: |
           cd backend
           pytest -v
