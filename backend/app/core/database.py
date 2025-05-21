@@ -4,15 +4,26 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from contextlib import contextmanager
 from typing import Generator
 import logging
+import os
 
 from app.core.config import settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Get database URL - use Heroku's DATABASE_URL if available, otherwise use settings
+database_url = os.getenv("DATABASE_URL", settings.SQLALCHEMY_DATABASE_URI)
+
+# Heroku provides PostgreSQL URLs starting with postgres://, but SQLAlchemy 1.4+ requires postgresql://
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+    logger.info("Converted postgres:// URL to postgresql:// for SQLAlchemy compatibility")
+
+logger.info(f"Using database connection: {database_url.split('@')[0].split('://')[0]}://*****@{database_url.split('@')[1] if '@' in database_url else 'localhost'}")
+
 # Create SQLAlchemy engine with connection pooling
 engine = create_engine(
-    settings.SQLALCHEMY_DATABASE_URI,
+    database_url,
     pool_pre_ping=True,  # Verify connections before using them
     pool_size=settings.POOL_SIZE,  # Maximum number of persistent connections
     max_overflow=settings.MAX_OVERFLOW,  # Maximum number of connections that can be created beyond pool_size

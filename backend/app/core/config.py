@@ -9,28 +9,35 @@ class Settings(BaseSettings):
     env_path: ClassVar[str] = os.getenv("ENV_FILE", ".env")
     model_config = ConfigDict(env_file=env_path, case_sensitive=True, extra="ignore")
     API_V1_STR: str = "/api"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 days
+    SECRET_KEY: str = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24 * 8))  # 8 days
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", 60 * 24 * 30))  # 30 days
     
     # CORS Configuration
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "")
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
-    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+    def assemble_cors_origins(cls, v: Union[str, List[str]], info: ValidationInfo) -> Union[List[str], str]:
+        # First check the ALLOWED_ORIGINS env var (for Heroku compatibility)
+        allowed_origins = info.data.get("ALLOWED_ORIGINS", "")
+        if allowed_origins and isinstance(allowed_origins, str):
+            return [i.strip() for i in allowed_origins.split(",")]
+            
+        # Fall back to BACKEND_CORS_ORIGINS
         if isinstance(v, str) and not v.startswith("["):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
-        raise ValueError(v)
+        return []
 
     # Database Configuration
-    POSTGRES_SERVER: str
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str
-    POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str
-    SQLALCHEMY_DATABASE_URI: Optional[str] = None
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
+    POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", 5432))
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "asikh_oms")
+    SQLALCHEMY_DATABASE_URI: Optional[str] = os.getenv("DATABASE_URL", None)
     
     @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
     def assemble_db_connection(cls, v: Optional[str], info: ValidationInfo) -> Optional[str]:
