@@ -1,0 +1,70 @@
+name: Build Mobile App for Production Environment
+
+on:
+  push:
+    branches:
+      - main  # Trigger on push to main branch
+    paths:
+      - 'mobile/**'  # Only trigger when changes are made to mobile files
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'mobile/asikh-oms-mobile/package-lock.json'
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli eas-cli
+
+      - name: Install dependencies
+        run: |
+          cd mobile/asikh-oms-mobile
+          npm ci
+
+      - name: Update config to use production environment
+        run: |
+          cd mobile/asikh-oms-mobile
+          # Ensure the environment is set to 'production' in the config file
+          sed -i 's/const CURRENT_ENV = .*/const CURRENT_ENV = '"'"'production'"'"';/' src/constants/config.js
+
+      - name: Run tests
+        run: |
+          cd mobile/asikh-oms-mobile
+          npm test
+
+      - name: Check for Expo token
+        id: check-token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "has_token=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_token=false" >> $GITHUB_OUTPUT
+            echo "Skipping Expo build because EXPO_TOKEN is not set. Add this secret to enable mobile app builds."
+          fi
+
+      - name: Build app for production
+        if: steps.check-token.outputs.has_token == 'true'
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          cd mobile/asikh-oms-mobile
+          # Use production build profile instead of preview
+          eas build --platform android --profile production --non-interactive
+          
+      - name: Create build artifacts
+        if: steps.check-token.outputs.has_token == 'true'
+        uses: actions/upload-artifact@v2
+        with:
+          name: app-build-prod
+          path: mobile/asikh-oms-mobile/build
+          retention-days: 5

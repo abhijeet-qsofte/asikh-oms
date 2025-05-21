@@ -1,9 +1,9 @@
-name: Deploy Backend to Heroku Test
+name: Deploy Backend to Heroku Production
 
 on:
   push:
     branches:
-      - develop  # Trigger deployment on push to develop branch
+      - main  # Trigger deployment on push to main branch
     paths:
       - 'backend/**'  # Only trigger when changes are made to backend files
 
@@ -49,7 +49,7 @@ jobs:
         uses: akhileshns/heroku-deploy@v3.12.12
         with:
           heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: "asikh-oms-test"  # Your Heroku app name
+          heroku_app_name: "asikh-oms-prod"  # Your Heroku production app name
           heroku_email: ${{ secrets.HEROKU_EMAIL }}
           appdir: "backend"  # Specify the directory containing your backend code
           
@@ -57,4 +57,4 @@ jobs:
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: |
-          heroku run "cd /app && alembic upgrade head" --app asikh-oms-test
+          heroku run "cd /app && alembic upgrade head" --app asikh-oms-prod
