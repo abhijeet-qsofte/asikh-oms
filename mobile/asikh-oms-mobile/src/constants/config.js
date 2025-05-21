@@ -4,13 +4,29 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
-// determine host for API calls: use Expo debuggerHost in dev, fallback to localhost or emulator loopback
-const hostName = Constants.manifest?.debuggerHost
-  ? Constants.manifest.debuggerHost.split(':')[0]
-  : Platform.OS === 'android'
-  ? '10.0.2.2'
-  : 'localhost';
-export const API_BASE_URL = `http://${hostName}:8000`;  // dynamically set based on device
+// Environment configuration
+const ENV = {
+  development: {
+    // For local development, use the debugger host or fallback to localhost/emulator
+    apiUrl: Constants.manifest?.debuggerHost
+      ? `http://${Constants.manifest.debuggerHost.split(':')[0]}:8000`
+      : `http://${Platform.OS === 'android' ? '10.0.2.2' : 'localhost'}:8000`
+  },
+  test: {
+    // Heroku test environment
+    apiUrl: 'https://asikh-oms-test-cd0577c5c937.herokuapp.com'
+  },
+  production: {
+    // Production environment (when you set it up)
+    apiUrl: 'https://asikh-oms-prod.herokuapp.com' // Update this when you deploy to production
+  }
+};
+
+// Set the current environment - change this to 'test' to use the Heroku backend
+const CURRENT_ENV = 'test';
+
+// Export the API base URL based on the current environment
+export const API_BASE_URL = ENV[CURRENT_ENV].apiUrl;
 
 // Storage Keys
 export const TOKEN_KEY = '@asikh:access_token';
