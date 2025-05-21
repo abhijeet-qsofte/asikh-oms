@@ -3,7 +3,7 @@
     "name": "asikh-oms-mobile",
     "slug": "asikh-oms-mobile",
     "version": "1.0.0",
-    "jsEngine": "hermes",
+    "jsEngine": "jsc",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,9 +30,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "plugins": [
-      "expo-barcode-scanner"
-    ]
+    }
   }
 }
