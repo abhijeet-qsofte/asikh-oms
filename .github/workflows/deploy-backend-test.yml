@@ -42,6 +42,23 @@ jobs:
           
       # Test stage removed
 
+      - name: Install Heroku CLI
+        run: |
+          curl https://cli-assets.heroku.com/install.sh | sh
+
+      - name: Create Heroku app if it doesn't exist
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          # Check if app exists, create if it doesn't
+          if ! heroku apps:info asikh-oms-test &> /dev/null; then
+            echo "Creating Heroku app: asikh-oms-test"
+            heroku create asikh-oms-test
+            heroku addons:create heroku-postgresql:hobby-dev --app asikh-oms-test
+          else
+            echo "Heroku app asikh-oms-test already exists"
+          fi
+
       - name: Deploy to Heroku
         uses: akhileshns/heroku-deploy@v3.12.12
         with:
@@ -49,10 +66,6 @@ jobs:
           heroku_app_name: "asikh-oms-test"  # Your Heroku app name
           heroku_email: ${{ secrets.HEROKU_EMAIL }}
           appdir: "backend"  # Specify the directory containing your backend code
-          
-      - name: Install Heroku CLI
-        run: |
-          curl https://cli-assets.heroku.com/install.sh | sh
           
       - name: Run database migrations
         env:
