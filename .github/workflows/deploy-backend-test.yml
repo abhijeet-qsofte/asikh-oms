@@ -50,6 +50,10 @@ jobs:
           heroku_email: ${{ secrets.HEROKU_EMAIL }}
           appdir: "backend"  # Specify the directory containing your backend code
           
+      - name: Install Heroku CLI
+        run: |
+          curl https://cli-assets.heroku.com/install.sh | sh
+          
       - name: Run database migrations
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
