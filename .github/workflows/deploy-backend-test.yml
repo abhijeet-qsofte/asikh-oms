@@ -66,6 +66,7 @@ jobs:
           heroku_app_name: "asikh-oms-test"  # Your Heroku app name
           heroku_email: ${{ secrets.HEROKU_EMAIL }}
           appdir: "backend"  # Specify the directory containing your backend code
+          force: true  # Force push to override any conflicts
           
       - name: Run database migrations
         env:
