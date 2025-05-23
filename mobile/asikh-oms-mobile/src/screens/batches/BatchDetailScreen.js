@@ -1,5 +1,5 @@
 // src/screens/batches/BatchDetailScreen.js
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,13 +8,14 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Card, Title, Paragraph, Divider, Chip, Button as PaperButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import Button from '../../components/Button';
-import DeepLinkButton from '../../components/DeepLinkButton';
+// Deep linking removed to fix authentication issues
 import { theme } from '../../constants/theme';
 import {
   getBatchById,
@@ -23,22 +24,45 @@ import {
   markBatchArrived,
   getReconciliationStatus,
 } from '../../store/slices/batchSlice';
+import { authService } from '../../api/authService';
 
 export default function BatchDetailScreen({ route, navigation }) {
   const dispatch = useDispatch();
   const { currentBatch, batchStats, loading, error } = useSelector((state) => state.batches);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Get batch ID from route params
   const { batchId } = route.params || {};
   
-  // Load batch details and stats
-  useEffect(() => {
+  // Function to load batch data
+  const loadBatchData = useCallback(() => {
     if (batchId) {
+      console.log('Loading batch data for batch:', batchId);
       dispatch(getBatchById(batchId));
       dispatch(getBatchStats(batchId));
       dispatch(getReconciliationStatus(batchId));
     }
   }, [batchId, dispatch]);
+  
+  // Load batch details and stats on mount
+  useEffect(() => {
+    loadBatchData();
+  }, [loadBatchData]);
+  
+  // Handle authentication errors
+  useEffect(() => {
+    if (error && (error.isAuthError || error.message?.includes('Authentication'))) {
+      // Redirect to login screen
+      authService.clearAuthAndRedirect(navigation);
+    }
+  }, [error, navigation]);
+  
+  // Handle pull-to-refresh
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadBatchData();
+    setTimeout(() => setRefreshing(false), 1000);
+  };
   
   // Format date for display
   const formatDate = (dateString) => {
@@ -140,7 +164,14 @@ export default function BatchDetailScreen({ route, navigation }) {
         <Text style={styles.errorText}>
           {error.detail || error.message || 'Failed to load batch details'}
         </Text>
-        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.errorButton}>
+        <Text style={styles.errorSubtext}>
+          Please check your connection and try again.
+        </Text>
+        <Button 
+          mode="outlined" 
+          onPress={() => navigation.goBack()} 
+          style={styles.errorButton}
+        >
           Go Back
         </Button>
       </View>
@@ -160,8 +191,66 @@ export default function BatchDetailScreen({ route, navigation }) {
     );
   }
   
+  // Safely render batch stats
+  const renderBatchStats = () => {
+    if (!batchStats || typeof batchStats !== 'object') return null;
+    
+    return (
+      <Card style={styles.card}>
+        <Card.Content>
+          <Title style={styles.cardTitle}>Detailed Statistics</Title>
+          <Divider style={styles.divider} />
+          
+          <View style={styles.statsGrid}>
+            {Object.entries(batchStats).map(([key, value]) => {
+              // Skip rendering if value is an empty object
+              if (value === null || (typeof value === 'object' && Object.keys(value).length === 0)) {
+                return null;
+              }
+              
+              // Format the value for display
+              let displayValue;
+              if (typeof value === 'object') {
+                displayValue = JSON.stringify(value);
+              } else if (typeof value === 'number') {
+                displayValue = value.toString();
+              } else if (typeof value === 'boolean') {
+                displayValue = value ? 'Yes' : 'No';
+              } else {
+                displayValue = String(value || '0');
+              }
+              
+              return (
+                <View key={key} style={styles.gridItem}>
+                  <Text style={styles.gridValue}>{displayValue}</Text>
+                  <Text style={styles.gridLabel}>
+                    {key
+                      .replace(/_/g, ' ')
+                      .split(' ')
+                      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+                      .join(' ')}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+  
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          colors={[theme.colors.primary]}
+          tintColor={theme.colors.primary}
+        />
+      }
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Batch Details</Text>
         <Chip
@@ -188,13 +277,6 @@ export default function BatchDetailScreen({ route, navigation }) {
         <Card.Content>
           <View style={styles.headerRow}>
             <Title style={styles.cardTitle}>Batch Information</Title>
-            <DeepLinkButton
-              routeName="BatchDetail"
-              params={{ batchId: currentBatch?.id }}
-              title="Share Batch"
-              style={styles.shareButton}
-              textStyle={styles.shareButtonText}
-            />
           </View>
           <Divider style={styles.divider} />
           
@@ -214,61 +296,23 @@ export default function BatchDetailScreen({ route, navigation }) {
           </View>
           
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Total Crates:</Text>
-            <Text style={styles.infoValue}>{currentBatch.total_crates || 0}</Text>
+            <Text style={styles.infoLabel}>From:</Text>
+            <Text style={styles.infoValue}>{currentBatch.from_location_name}</Text>
           </View>
           
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Total Weight:</Text>
-            <Text style={styles.infoValue}>{currentBatch.total_weight || 0} kg</Text>
+            <Text style={styles.infoLabel}>To:</Text>
+            <Text style={styles.infoValue}>{currentBatch.to_location_name}</Text>
           </View>
           
-          {currentBatch.status === 'delivered' && (
-            <>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Reconciliation:</Text>
-                <View style={styles.reconciliationContainer}>
-                  <Ionicons 
-                    name={currentBatch.is_fully_reconciled ? "checkmark-circle" : "time-outline"} 
-                    size={18} 
-                    color={currentBatch.is_fully_reconciled ? theme.colors.success : theme.colors.warning} 
-                    style={styles.reconciliationIcon} 
-                  />
-                  <Text style={styles.infoValue}>
-                    {currentBatch.reconciliation_status || '0/0 crates (0%)'}
-                  </Text>
-                </View>
-              </View>
-              <Button 
-                mode="contained" 
-                icon="qrcode-scan" 
-                onPress={() => navigation.navigate('ReconciliationDetail', { batchId: currentBatch.id })}
-                style={styles.reconcileButton}
-              >
-                Reconcile Crates
-              </Button>
-            </>
-          )}
-        </Card.Content>
-      </Card>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Title style={styles.cardTitle}>Transport Details</Title>
-          <Divider style={styles.divider} />
-          
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Transport Mode:</Text>
-            <Text style={styles.infoValue}>
-              {currentBatch.transport_mode ? 
-                (currentBatch.transport_mode.charAt(0).toUpperCase() + currentBatch.transport_mode.slice(1)) : 
-                'Not specified'}
-            </Text>
+            <Text style={styles.infoLabel}>Transport:</Text>
+            <Text style={styles.infoValue}>{currentBatch.transport_mode}</Text>
           </View>
           
           {currentBatch.vehicle_number && (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Vehicle Number:</Text>
+              <Text style={styles.infoLabel}>Vehicle:</Text>
               <Text style={styles.infoValue}>{currentBatch.vehicle_number}</Text>
             </View>
           )}
@@ -281,93 +325,47 @@ export default function BatchDetailScreen({ route, navigation }) {
           )}
           
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>From:</Text>
-            <Text style={styles.infoValue}>{currentBatch.from_location_name}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>To:</Text>
-            <Text style={styles.infoValue}>{currentBatch.to_location_name}</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>ETA:</Text>
             <Text style={styles.infoValue}>{formatDate(currentBatch.eta)}</Text>
           </View>
-        </Card.Content>
-      </Card>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Title style={styles.cardTitle}>Shipment Status</Title>
-          <Divider style={styles.divider} />
           
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Departure:</Text>
-            <Text style={styles.infoValue}>
-              {currentBatch.departure_time
-                ? formatDate(currentBatch.departure_time)
-                : 'Not departed yet'}
-            </Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Arrival:</Text>
-            <Text style={styles.infoValue}>
-              {currentBatch.arrival_time
-                ? formatDate(currentBatch.arrival_time)
-                : 'Not arrived yet'}
-            </Text>
-          </View>
-          
-          {batchStats && batchStats.transit_time_minutes && (
+          {currentBatch.departure_time && (
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Transit Time:</Text>
-              <Text style={styles.infoValue}>
-                {Math.floor(batchStats.transit_time_minutes / 60)} hours{' '}
-                {Math.floor(batchStats.transit_time_minutes % 60)} minutes
-              </Text>
+              <Text style={styles.infoLabel}>Departed:</Text>
+              <Text style={styles.infoValue}>{formatDate(currentBatch.departure_time)}</Text>
+            </View>
+          )}
+          
+          {currentBatch.arrival_time && (
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Arrived:</Text>
+              <Text style={styles.infoValue}>{formatDate(currentBatch.arrival_time)}</Text>
             </View>
           )}
         </Card.Content>
       </Card>
       
-      {batchStats && (
-        <Card style={styles.card}>
-          <Card.Content>
-            <Title style={styles.cardTitle}>Batch Statistics</Title>
-            <Divider style={styles.divider} />
-            
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Reconciled Crates:</Text>
-              <Text style={styles.infoValue}>
-                {batchStats.reconciled_crates} / {batchStats.total_crates} (
-                {Math.round(batchStats.reconciliation_percentage)}%)
-              </Text>
+      <Card style={styles.card}>
+        <Card.Content>
+          <Title style={styles.cardTitle}>Batch Summary</Title>
+          <Divider style={styles.divider} />
+          
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{currentBatch.total_crates || 0}</Text>
+              <Text style={styles.statLabel}>Total Crates</Text>
             </View>
             
-            <View style={styles.statsSection}>
-              <Text style={styles.statsSectionTitle}>Variety Distribution:</Text>
-              {Object.entries(batchStats.variety_distribution).map(([variety, count]) => (
-                <View key={variety} style={styles.statItem}>
-                  <Text style={styles.statItemLabel}>{variety}:</Text>
-                  <Text style={styles.statItemValue}>{count} crates</Text>
-                </View>
-              ))}
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{currentBatch.total_weight || 0} kg</Text>
+              <Text style={styles.statLabel}>Total Weight</Text>
             </View>
-            
-            <View style={styles.statsSection}>
-              <Text style={styles.statsSectionTitle}>Quality Grade Distribution:</Text>
-              {Object.entries(batchStats.grade_distribution).map(([grade, count]) => (
-                <View key={grade} style={styles.statItem}>
-                  <Text style={styles.statItemLabel}>Grade {grade}:</Text>
-                  <Text style={styles.statItemValue}>{count} crates</Text>
-                </View>
-              ))}
-            </View>
-          </Card.Content>
-        </Card>
-      )}
+          </View>
+        </Card.Content>
+      </Card>
+      
+      {/* Render batch stats using the safe rendering function */}
+      {renderBatchStats()}
       
       {currentBatch.notes && (
         <Card style={styles.card}>
@@ -424,29 +422,48 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  headerRow: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#757575',
+  },
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 5,
+    padding: 16,
+    paddingBottom: 8,
   },
-  shareButton: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    marginLeft: 10,
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#212121',
   },
-  shareButtonText: {
+  statusChip: {
+    height: 28,
+  },
+  statusText: {
     fontSize: 12,
+    fontWeight: 'bold',
     color: 'white',
+  },
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    elevation: 2,
   },
   qrCard: {
     marginHorizontal: 16,
-    marginVertical: 8,
-    elevation: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.primary,
+    marginBottom: 16,
+    borderRadius: 8,
+    elevation: 2,
+    backgroundColor: '#f9f9f9',
   },
   qrContainer: {
     flexDirection: 'row',
@@ -457,123 +474,134 @@ const styles = StyleSheet.create({
   },
   qrLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#757575',
   },
   qrCode: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    color: theme.colors.primary,
+    color: '#212121',
   },
-  reconciliationContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reconciliationIcon: {
-    marginRight: 8,
-  },
-  reconcileButton: {
-    marginTop: 16,
-    backgroundColor: theme.colors.primary,
-  },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: theme.colors.primary,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  statusChip: {
-    height: 28,
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  card: {
-    margin: 16,
-    marginTop: 8,
-    marginBottom: 8,
   },
   cardTitle: {
     fontSize: 18,
-    marginBottom: 8,
+    fontWeight: 'bold',
+    color: '#212121',
+  },
+  shareButton: {
+    height: 36,
+    paddingHorizontal: 8,
+  },
+  shareButtonText: {
+    fontSize: 12,
   },
   divider: {
-    marginBottom: 16,
+    marginVertical: 12,
+    backgroundColor: '#e0e0e0',
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
   },
   infoLabel: {
-    fontWeight: 'bold',
-    color: theme.colors.text,
+    fontSize: 14,
+    color: '#757575',
     flex: 1,
   },
   infoValue: {
+    fontSize: 14,
+    color: '#212121',
+    fontWeight: '500',
     flex: 2,
-    color: theme.colors.text,
+    textAlign: 'right',
   },
-  statsSection: {
-    marginTop: 16,
-  },
-  statsSectionTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 16,
   },
   statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#757575',
+    marginTop: 4,
+  },
+  statsGrid: {
     flexDirection: 'row',
-    paddingLeft: 16,
-    marginBottom: 4,
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
   },
-  statItemLabel: {
-    flex: 1,
+  gridItem: {
+    width: '48%',
+    alignItems: 'center',
+    marginVertical: 8,
+    padding: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
   },
-  statItemValue: {
-    flex: 1,
+  gridValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+  },
+  gridLabel: {
+    fontSize: 12,
+    color: '#757575',
+    marginTop: 4,
+    textAlign: 'center',
   },
   notes: {
-    fontStyle: 'italic',
+    fontSize: 14,
+    color: '#212121',
+    lineHeight: 20,
   },
   actionButtons: {
     padding: 16,
-    paddingTop: 8,
+    paddingBottom: 32,
   },
   actionButton: {
-    marginBottom: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: theme.colors.primary,
+    marginBottom: 12,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    marginTop: 50,
   },
   errorText: {
-    marginTop: 10,
-    marginBottom: 20,
-    fontSize: 16,
-    color: theme.colors.error,
+    fontSize: 18,
+    color: '#757575',
     textAlign: 'center',
+    marginVertical: 10,
+    fontWeight: 'bold',
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#9E9E9E',
+    textAlign: 'center',
+    marginBottom: 20,
   },
   errorButton: {
-    width: '50%',
+    marginHorizontal: 10,
+    minWidth: 120,
+    marginTop: 10,
+  },
+  errorBackButton: {
+    borderColor: theme.colors.primary,
   },
 });

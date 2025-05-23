@@ -5,6 +5,7 @@ import {
   API_BASE_URL,
   TOKEN_KEY,
   REFRESH_TOKEN_KEY,
+  USER_INFO_KEY,
 } from '../constants/config';
 
 const apiClient = axios.create({
@@ -17,9 +18,23 @@ const apiClient = axios.create({
 // Request interceptor for adding auth token
 apiClient.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    try {
+      // Always get a fresh token from storage for each request
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      
+      if (token) {
+        console.log('Setting Authorization header with token for:', config.url);
+        config.headers.Authorization = `Bearer ${token}`;
+        // Also set it in the default headers to ensure it persists
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } else {
+        console.log('No token available for request to:', config.url);
+        // Remove Authorization header if no token is available
+        delete config.headers.Authorization;
+        delete apiClient.defaults.headers.common['Authorization'];
+      }
+    } catch (error) {
+      console.error('Error setting auth header:', error);
     }
     return config;
   },
@@ -31,53 +46,59 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    // Handle token refresh if 401 error
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        // Get refresh token
-        const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-        
-        // If no refresh token, we can't refresh
-        if (!refreshToken) {
-          console.log('No refresh token available, cannot refresh');
-          // Clear auth data since we can't refresh
-          await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
-          // Redirect to login (this will be handled by the app navigation)
-          return Promise.reject(error);
-        }
-        
-        // Try to refresh the token
-        const response = await axios.post(`${API_BASE_URL}/api/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
-
-        // If successful, update tokens
-        if (response.data && response.data.access_token) {
-          const { access_token, refresh_token } = response.data;
-
-          await AsyncStorage.setItem(TOKEN_KEY, access_token);
-          if (refresh_token) {
-            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refresh_token);
-          }
-
-          // Update authorization header and retry the request
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
-          return apiClient(originalRequest);
-        } else {
-          console.log('Token refresh response did not contain access_token');
-          return Promise.reject(error);
-        }
-      } catch (error) {
-        // Force logout if refresh fails
-        await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY]);
-        // Return to login screen logic would be here
-        return Promise.reject(error);
-      }
+    
+    // Skip auth handling for login requests to avoid loops
+    if (originalRequest?.url?.includes('/api/auth/login')) {
+      return Promise.reject(error);
     }
 
+    // If error is 401 and we haven't already tried to refresh the token
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      console.log('Received 401 error for:', originalRequest?.url);
+      console.log('Attempting token refresh...');
+      
+      if (originalRequest) {
+        originalRequest._retry = true;
+      }
+      
+      try {
+        // Import auth service dynamically to avoid circular dependency
+        const { authService } = require('./authService');
+        
+        // Try to refresh the token
+        const refreshSuccessful = await authService.checkAndRefreshToken();
+        
+        if (refreshSuccessful) {
+          console.log('Token refresh successful, retrying original request');
+          
+          // Get the new token
+          const newToken = await AsyncStorage.getItem(TOKEN_KEY);
+          
+          // Update the Authorization header for the original request
+          if (originalRequest && newToken) {
+            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            // Retry the original request with the new token
+            return apiClient(originalRequest);
+          }
+        } else {
+          console.log('Token refresh failed, rejecting request');
+          // Clear auth data
+          await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
+          
+          // Add auth error flag to help identify auth errors in components
+          error.isAuthError = true;
+        }
+      } catch (refreshError) {
+        console.error('Error during token refresh:', refreshError);
+        // Clear auth data
+        await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
+        
+        // Add auth error flag
+        error.isAuthError = true;
+      }
+    }
+    
+    // If we get here, token refresh failed or wasn't attempted
     return Promise.reject(error);
   }
 );
