@@ -14,6 +14,7 @@ import { Card, Title, Paragraph, Divider, Chip, Button as PaperButton } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import Button from '../../components/Button';
+import DeepLinkButton from '../../components/DeepLinkButton';
 import { theme } from '../../constants/theme';
 import {
   getBatchById,
@@ -185,7 +186,16 @@ export default function BatchDetailScreen({ route, navigation }) {
       
       <Card style={styles.card}>
         <Card.Content>
-          <Title style={styles.cardTitle}>Batch Information</Title>
+          <View style={styles.headerRow}>
+            <Title style={styles.cardTitle}>Batch Information</Title>
+            <DeepLinkButton
+              routeName="BatchDetail"
+              params={{ batchId: currentBatch?.id }}
+              title="Share Batch"
+              style={styles.shareButton}
+              textStyle={styles.shareButtonText}
+            />
+          </View>
           <Divider style={styles.divider} />
           
           <View style={styles.infoRow}>
@@ -413,6 +423,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  shareButton: {
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    marginLeft: 10,
+  },
+  shareButtonText: {
+    fontSize: 12,
+    color: 'white',
   },
   qrCard: {
     marginHorizontal: 16,

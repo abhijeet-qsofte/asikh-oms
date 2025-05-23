@@ -23,6 +23,10 @@ export const logout = createAsyncThunk('auth/logout', async () => {
 });
 
 export const checkAuth = createAsyncThunk('auth/check', async () => {
+  // First try to refresh the token if needed
+  await authService.checkAndRefreshToken();
+  
+  // Then check if authenticated
   const isAuth = await authService.isAuthenticated();
   if (isAuth) {
     const user = await authService.getCurrentUser();

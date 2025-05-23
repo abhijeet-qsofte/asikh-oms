@@ -8,6 +8,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "asikhoms",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +16,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.asikhomsmobile"
+      "bundleIdentifier": "com.anonymous.asikhomsmobile",
+      "associatedDomains": ["applinks:asikhoms.com"]
     },
     "android": {
       "adaptiveIcon": {
@@ -23,6 +25,23 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.anonymous.asikhomsmobile",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "*.asikhoms.com",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "asikhoms"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.INTERNET"

@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
+import { Text } from 'react-native';
 
 // Auth screens
 import LoginScreen from '../screens/LoginScreen';
@@ -215,12 +216,45 @@ const AdminNavigator = () => (
   </AdminStack.Navigator>
 );
 
+// Import linking configuration
+import { linkingConfig, subscribeToDeepLinks, handleDeepLink } from '../utils/linking';
+import { useEffect, useRef } from 'react';
+
 // Root navigator
 export default function AppNavigator() {
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const navigationRef = useRef(null);
+
+  // Handle deep linking
+  useEffect(() => {
+    // Function to handle incoming deep links
+    const handleLink = (url) => {
+      if (!url) return;
+      
+      const { path, queryParams } = handleDeepLink(url);
+      console.log('Deep link handled:', { path, queryParams });
+      
+      // Navigate based on the deep link if the app is authenticated
+      if (isAuthenticated && navigationRef.current) {
+        // You can add custom navigation logic here based on the path and params
+      }
+    };
+
+    // Subscribe to deep links
+    const subscription = subscribeToDeepLinks(handleLink);
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated]);
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      linking={linkingConfig}
+      fallback={<Text>Loading...</Text>}
+    >
       {isAuthenticated ? <TabNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
