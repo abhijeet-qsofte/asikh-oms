@@ -37,13 +37,18 @@ def create_access_token(
         expire = now + expires_delta
     else:
         expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # Convert datetime objects to timestamps (seconds since epoch)
+    # This ensures proper serialization for JWT
     to_encode = {
-        "exp": expire,
-        "iat": now,
+        "exp": int(expire.timestamp()),
+        "iat": int(now.timestamp()),
         "jti": str(uuid.uuid4()),  # unique token identifier
         "sub": str(subject),
         "type": "access",
     }
+    
+    logger.debug(f"Creating access token with exp: {to_encode['exp']} ({expire.isoformat()})")
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
@@ -62,12 +67,16 @@ def create_refresh_token(
             minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES
         )
     
+    # Convert datetime objects to timestamps (seconds since epoch)
+    # This ensures proper serialization for JWT
     to_encode = {
-        "exp": expire, 
-        "iat": now,
+        "exp": int(expire.timestamp()), 
+        "iat": int(now.timestamp()),
         "sub": str(subject), 
         "type": "refresh"
     }
+    
+    logger.debug(f"Creating refresh token with exp: {to_encode['exp']} ({expire.isoformat()})")
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
@@ -100,17 +109,23 @@ def get_token_payload(token: str = Depends(oauth2_scheme)) -> TokenPayload:
                 headers={"WWW-Authenticate": "Bearer"},
             )
             
-        # Always use UTC timezone explicitly for token expiry validation
-        token_expiry = datetime.fromtimestamp(token_data.exp, tz=timezone.utc)
+        # Since token_data.exp is already a timestamp (seconds since epoch),
+        # we don't need to convert it, just compare with current time
         current_time = datetime.now(timezone.utc)
+        current_timestamp = int(current_time.timestamp())
         
-        if token_expiry < current_time:
+        # For debugging
+        token_expiry = datetime.fromtimestamp(token_data.exp, tz=timezone.utc)
+        
+        if token_data.exp < current_timestamp:
             logger.warning(f"Token expired at {token_expiry.isoformat()}, current time is {current_time.isoformat()}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        
+        logger.debug(f"Token valid until {token_expiry.isoformat()}, current time is {current_time.isoformat()}")
         
         return token_data
     except jwt.JWTError as e:
