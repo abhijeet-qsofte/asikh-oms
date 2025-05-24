@@ -1,5 +1,5 @@
 # app/core/security.py
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 from jose import jwt
 from passlib.context import CryptContext
@@ -31,7 +31,8 @@ def create_access_token(
     """
     Create a JWT access token with optional expiration
     """
-    now = datetime.utcnow()
+    # Always use UTC timezone explicitly
+    now = datetime.now(timezone.utc)
     if expires_delta:
         expire = now + expires_delta
     else:
@@ -52,14 +53,21 @@ def create_refresh_token(
     """
     Create a JWT refresh token with optional expiration
     """
+    # Always use UTC timezone explicitly
+    now = datetime.now(timezone.utc)
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = now + timedelta(
             minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES
         )
     
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {
+        "exp": expire, 
+        "iat": now,
+        "sub": str(subject), 
+        "type": "refresh"
+    }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
@@ -92,7 +100,12 @@ def get_token_payload(token: str = Depends(oauth2_scheme)) -> TokenPayload:
                 headers={"WWW-Authenticate": "Bearer"},
             )
             
-        if datetime.fromtimestamp(token_data.exp) < datetime.utcnow():
+        # Always use UTC timezone explicitly for token expiry validation
+        token_expiry = datetime.fromtimestamp(token_data.exp, tz=timezone.utc)
+        current_time = datetime.now(timezone.utc)
+        
+        if token_expiry < current_time:
+            logger.warning(f"Token expired at {token_expiry.isoformat()}, current time is {current_time.isoformat()}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token expired",
