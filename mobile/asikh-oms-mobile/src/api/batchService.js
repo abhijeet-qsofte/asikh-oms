@@ -1,4 +1,5 @@
 // src/api/batchService.js
+import axios from 'axios';
 import apiClient from './client';
 import { authService } from './authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -8,52 +9,28 @@ import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY, API_BASE_URL } from '../co
  * Service for batch-related API operations
  */
 
-// Helper function to ensure token is refreshed before making API calls
+/**
+ * Helper function to ensure authentication before making API calls
+ * @returns {Object} - The main API client with authentication and token refresh capabilities
+ */
 const ensureAuthenticated = async () => {
   try {
-    console.log('Ensuring authentication before batch API call');
+    console.log('Ensuring authentication before making batch API call');
     
-    // First, check if we have a token
+    // Get token directly from AsyncStorage to verify we have one
     const token = await AsyncStorage.getItem(TOKEN_KEY);
+    
     if (!token) {
-      console.error('No token found in storage');
-      throw new Error('Authentication required - no token available');
+      console.error('No authentication token found for batch service');
+      throw new Error('Not authenticated');
     }
     
-    // Set the token in the API client headers
-    console.log('Setting token in Authorization header');
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    // Use the main apiClient which has token refresh capabilities
+    // This is important for handling JWT signature verification errors
+    console.log('Using main apiClient for batch service (with token refresh capabilities)');
     
-    // Check if we need to refresh the token
-    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-    if (!refreshToken) {
-      console.error('No refresh token found in storage');
-      throw new Error('Authentication required - no refresh token available');
-    }
-    
-    // Try to refresh the token to ensure it's fresh
-    console.log('Attempting to refresh token for freshness');
-    const refreshed = await authService.checkAndRefreshToken();
-    
-    if (!refreshed) {
-      console.error('Token refresh failed, user needs to login again');
-      // Clear any potentially corrupted tokens
-      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
-      delete apiClient.defaults.headers.common['Authorization'];
-      throw new Error('Authentication required');
-    }
-    
-    console.log('Token refreshed successfully');
-    
-    // Get the new token and set it explicitly
-    const newToken = await AsyncStorage.getItem(TOKEN_KEY);
-    if (!newToken) {
-      console.error('No token available after refresh');
-      throw new Error('Authentication required - refresh did not produce a valid token');
-    }
-    
-    console.log('Setting refreshed token in Authorization header');
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    // The main apiClient already has the token set and refresh logic
+    return apiClient;
   } catch (error) {
     console.error('Authentication check failed:', error);
     throw error;
@@ -104,9 +81,10 @@ const batchService = {
   getBatchById: async (batchId) => {
     try {
       // Ensure we're authenticated before making the API call
-      await ensureAuthenticated();
+      const authClient = await ensureAuthenticated();
       
-      const response = await apiClient.get(`/api/batches/${batchId}`);
+      // Use the authenticated client for this specific request
+      const response = await authClient.get(`/api/batches/${batchId}`);
       return response.data;
     } catch (error) {
       console.error(`Error getting batch ${batchId}:`, error.response?.data || error.message);
@@ -156,9 +134,10 @@ const batchService = {
       console.log(`Getting stats for batch ${batchId}`);
       
       // Ensure we're authenticated before making the API call
-      await ensureAuthenticated();
+      const authClient = await ensureAuthenticated();
       
-      const response = await apiClient.get(`/api/batches/${batchId}/stats`);
+      // Use the authenticated client for this specific request
+      const response = await authClient.get(`/api/batches/${batchId}/stats`);
       console.log('Batch stats response:', response.data);
       return response.data;
     } catch (error) {
@@ -223,9 +202,10 @@ const batchService = {
       console.log(`Getting reconciliation status for batch ${batchId}`);
       
       // Ensure we're authenticated before making the API call
-      await ensureAuthenticated();
+      const authClient = await ensureAuthenticated();
       
-      const response = await apiClient.get(`/api/batches/${batchId}/reconciliation-stats`);
+      // Use the authenticated client for this specific request
+      const response = await authClient.get(`/api/batches/${batchId}/reconciliation-stats`);
       console.log('Reconciliation status response:', response.data);
       return response.data;
     } catch (error) {
@@ -244,9 +224,10 @@ const batchService = {
       console.log(`Getting detailed weight information for batch ${batchId}`);
       
       // Ensure we're authenticated before making the API call
-      await ensureAuthenticated();
+      const authClient = await ensureAuthenticated();
       
-      const response = await apiClient.get(`/api/batches/${batchId}/weight-details`);
+      // Use the authenticated client for this specific request
+      const response = await authClient.get(`/api/batches/${batchId}/weight-details`);
       console.log('Weight details response:', response.data);
       return response.data;
     } catch (error) {

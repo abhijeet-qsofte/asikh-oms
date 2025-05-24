@@ -13,7 +13,7 @@ const ENV = {
       : `http://${Platform.OS === 'android' ? '10.0.2.2' : 'localhost'}:8000`
   },
   test: {
-    // Heroku test environment
+    // Heroku test environment - using full domain name to avoid JWT signature issues
     apiUrl: 'https://asikh-oms-test-cd0577c5c937.herokuapp.com'
   },
   production: {
@@ -22,16 +22,20 @@ const ENV = {
   }
 };
 
-// Set the current environment - change this to 'test' to use the Heroku backend
+// Set the current environment - 'test' for Heroku, 'development' for local
 const CURRENT_ENV = 'test';
 
 // Export the API base URL based on the current environment
 export const API_BASE_URL = ENV[CURRENT_ENV].apiUrl;
 
+// For debugging
+console.log('API Base URL:', API_BASE_URL);
+
 // Storage Keys
 export const TOKEN_KEY = '@asikh:access_token';
 export const REFRESH_TOKEN_KEY = '@asikh:refresh_token';
 export const USER_INFO_KEY = '@asikh:user_info';
+export const TOKEN_EXPIRY_KEY = '@asikh:token_expiry';
 
 // App Configuration
 export const APP_VERSION = '1.0.0';

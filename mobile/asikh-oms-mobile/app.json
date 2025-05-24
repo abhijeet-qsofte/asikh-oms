@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "scheme": "asikhoms",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -44,8 +44,12 @@
       ],
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.INTERNET"
-      ]
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "config": {
+        "useCleartextTraffic": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

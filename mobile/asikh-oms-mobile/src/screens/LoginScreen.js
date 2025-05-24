@@ -11,7 +11,12 @@ import { getDeviceInfo } from '../utils/deviceInfo';
 import { theme } from '../constants/theme';
 import apiClient from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY } from '../constants/config';
+import {
+  API_BASE_URL,
+  TOKEN_KEY,
+  REFRESH_TOKEN_KEY,
+  USER_INFO_KEY,
+} from '../constants/config';
 
 const LoginSchema = Yup.object().shape({
   username: Yup.string().required('Username is required'),
@@ -40,18 +45,22 @@ export default function LoginScreen() {
   useEffect(() => {
     apiClient
       .get('/health')
-      .then(res => console.log('API OK:', res.data))
-      .catch(err => console.error('API ❌', err.message));
+      .then((res) => console.log('API OK:', res.data))
+      .catch((err) => console.error('API ❌', err.message));
   }, []);
 
   const handleLogin = async (values) => {
     try {
       console.log('Attempting login for user:', values.username);
-      
+
       // Clear any existing tokens before login to prevent token conflicts
-      await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
+      await AsyncStorage.multiRemove([
+        TOKEN_KEY,
+        REFRESH_TOKEN_KEY,
+        USER_INFO_KEY,
+      ]);
       console.log('Cleared existing authentication tokens');
-      
+
       // unwrap to throw on error and capture stack
       await dispatch(
         login({
@@ -60,7 +69,7 @@ export default function LoginScreen() {
           deviceInfo,
         })
       ).unwrap();
-      
+
       console.log('Login successful');
     } catch (err) {
       console.error('Login error:', err);

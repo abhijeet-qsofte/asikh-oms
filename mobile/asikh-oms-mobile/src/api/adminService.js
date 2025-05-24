@@ -1,5 +1,36 @@
 // src/api/adminService.js
+import axios from 'axios';
 import apiClient from './client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TOKEN_KEY, API_BASE_URL } from '../constants/config';
+
+/**
+ * Helper function to ensure authentication before making API calls
+ * @returns {Object} - The main API client with authentication and token refresh capabilities
+ */
+const ensureAuthenticated = async () => {
+  try {
+    console.log('Ensuring authentication for admin service API call');
+    
+    // Get token directly from AsyncStorage to verify we have one
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    
+    if (!token) {
+      console.error('No authentication token found for admin service');
+      throw new Error('Not authenticated');
+    }
+    
+    // Use the main apiClient which has token refresh capabilities
+    // This is important for handling JWT signature verification errors
+    console.log('Using main apiClient for admin service (with token refresh capabilities)');
+    
+    // The main apiClient already has the token set and refresh logic
+    return apiClient;
+  } catch (error) {
+    console.error('Authentication check failed for admin service:', error);
+    throw error;
+  }
+};
 
 /**
  * Service for admin-related API operations
@@ -13,7 +44,11 @@ const adminService = {
   getFarms: async (params = {}) => {
     console.log('adminService.getFarms called with params:', params);
     try {
-      const response = await apiClient.get('/api/farms/', { params });
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.get('/api/farms/', { params });
       console.log('API response from getFarms:', response.data);
       
       // Extract farms array from the response
@@ -38,7 +73,11 @@ const adminService = {
   createFarm: async (farmData) => {
     console.log('Creating farm with data:', JSON.stringify(farmData, null, 2));
     try {
-      const response = await apiClient.post('/api/farms/', farmData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post('/api/farms/', farmData);
       console.log('Farm creation response:', response.data);
       return response.data;
     } catch (error) {
@@ -56,7 +95,11 @@ const adminService = {
   updateFarm: async (farmId, farmData) => {
     console.log(`Updating farm ${farmId} with data:`, JSON.stringify(farmData, null, 2));
     try {
-      const response = await apiClient.put(`/api/farms/${farmId}`, farmData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.put(`/api/farms/${farmId}`, farmData);
       console.log('Farm update response:', response.data);
       return response.data;
     } catch (error) {
@@ -73,7 +116,11 @@ const adminService = {
   getPackhouses: async (params = {}) => {
     console.log('adminService.getPackhouses called with params:', params);
     try {
-      const response = await apiClient.get('/api/packhouses/', { params });
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.get('/api/packhouses/', { params });
       console.log('API response from getPackhouses:', response.data);
       
       // Extract packhouses array from the response
@@ -97,7 +144,11 @@ const adminService = {
    */
   createPackhouse: async (packhouseData) => {
     try {
-      const response = await apiClient.post('/api/packhouses/', packhouseData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post('/api/packhouses/', packhouseData);
       return response.data;
     } catch (error) {
       console.error('Packhouse creation error:', error.response?.data || error.message);
@@ -114,7 +165,11 @@ const adminService = {
   updatePackhouse: async (packhouseId, packhouseData) => {
     console.log(`Updating packhouse ${packhouseId} with data:`, JSON.stringify(packhouseData, null, 2));
     try {
-      const response = await apiClient.put(`/api/packhouses/${packhouseId}`, packhouseData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.put(`/api/packhouses/${packhouseId}`, packhouseData);
       console.log('Packhouse update response:', response.data);
       return response.data;
     } catch (error) {
@@ -131,7 +186,11 @@ const adminService = {
   getVarieties: async (params = {}) => {
     console.log('adminService.getVarieties called with params:', params);
     try {
-      const response = await apiClient.get('/api/varieties/', { params });
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.get('/api/varieties/', { params });
       console.log('API response from getVarieties:', response.data);
       
       // Extract varieties array from the response
@@ -155,7 +214,11 @@ const adminService = {
    */
   createVariety: async (varietyData) => {
     try {
-      const response = await apiClient.post('/api/varieties/', varietyData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post('/api/varieties/', varietyData);
       return response.data;
     } catch (error) {
       console.error('Variety creation error:', error.response?.data || error.message);
@@ -172,7 +235,11 @@ const adminService = {
   updateVariety: async (varietyId, varietyData) => {
     console.log(`Updating variety ${varietyId} with data:`, JSON.stringify(varietyData, null, 2));
     try {
-      const response = await apiClient.put(`/api/varieties/${varietyId}`, varietyData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.put(`/api/varieties/${varietyId}`, varietyData);
       console.log('Variety update response:', response.data);
       return response.data;
     } catch (error) {
@@ -189,7 +256,11 @@ const adminService = {
   getUsers: async (params = {}) => {
     console.log('adminService.getUsers called with params:', params);
     try {
-      const response = await apiClient.get('/api/users/', { params });
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.get('/api/users/', { params });
       console.log('API response from getUsers:', response.data);
       
       // Extract users array from the response
@@ -213,7 +284,11 @@ const adminService = {
    */
   createUser: async (userData) => {
     try {
-      const response = await apiClient.post('/api/users/', userData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post('/api/users/', userData);
       return response.data;
     } catch (error) {
       console.error('User creation error:', error.response?.data || error.message);
@@ -230,7 +305,11 @@ const adminService = {
   updateUser: async (userId, userData) => {
     console.log(`Updating user ${userId} with data:`, JSON.stringify(userData, null, 2));
     try {
-      const response = await apiClient.put(`/api/users/${userId}`, userData);
+      // Get authenticated client
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.put(`/api/users/${userId}`, userData);
       console.log('User update response:', response.data);
       return response.data;
     } catch (error) {

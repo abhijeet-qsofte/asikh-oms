@@ -2,7 +2,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authService } from '../../api/authService';
-import { TOKEN_KEY } from '../../constants/config';
+import { TOKEN_KEY, TOKEN_EXPIRY_KEY } from '../../constants/config';
 
 // Async actions
 export const login = createAsyncThunk(
@@ -11,16 +11,29 @@ export const login = createAsyncThunk(
     try {
       console.log('Login thunk: attempting login with username', username);
       const result = await authService.login(username, password, deviceInfo);
-      console.log('Login thunk: login successful, result:', result);
+      console.log('Login thunk: login successful');
       
-      // Ensure the token is set in the API client headers
-      if (result && result.token) {
-        console.log('Login thunk: setting token in API client');
+      // Get the token from storage after login
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (token) {
+        console.log('Login thunk: token retrieved from storage, setting in API client');
         const apiClient = (await import('../../api/client')).default;
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${result.token}`;
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Verify the header was set
+        console.log('Authorization header set:', !!apiClient.defaults.headers.common['Authorization']);
+      } else {
+        console.error('Login thunk: No token found in storage after login');
       }
       
-      return result;
+      return {
+        user: {
+          id: result.user_id,
+          username: result.username,
+          role: result.role
+        },
+        token: token
+      };
     } catch (error) {
       console.error('Login thunk error:', error);
       return rejectWithValue(
@@ -34,53 +47,72 @@ export const logout = createAsyncThunk('auth/logout', async () => {
   await authService.logout();
 });
 
-export const checkAuth = createAsyncThunk('auth/check', async () => {
+export const refreshToken = createAsyncThunk(
+  'auth/refreshToken',
+  async (_, { rejectWithValue }) => {
+    try {
+      console.log('Refresh token thunk: attempting to refresh token');
+      const result = await authService.refreshToken();
+      
+      // Get the token from storage after refresh
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      
+      if (token) {
+        // Set the token in API client headers
+        const apiClient = (await import('../../api/client')).default;
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        console.log('Refresh token thunk: token refreshed and set in API client');
+        
+        // Get current user info
+        const user = await authService.getCurrentUser();
+        
+        return {
+          user,
+          token,
+          expiresAt: await AsyncStorage.getItem(TOKEN_EXPIRY_KEY)
+        };
+      } else {
+        console.error('Refresh token thunk: No token found after refresh');
+        return rejectWithValue({ message: 'Token refresh failed' });
+      }
+    } catch (error) {
+      console.error('Refresh token thunk error:', error);
+      return rejectWithValue(
+        error.response?.data || { message: 'Token refresh failed', detail: error.message }
+      );
+    }
+  }
+);
+
+export const checkAuth = createAsyncThunk('auth/check', async (_, { dispatch }) => {
   console.log('Checking authentication status on app startup');
   
-  // First check if we have tokens in storage
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
-  const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
-  
-  console.log('Initial token check:', { hasToken: !!token, hasRefreshToken: !!refreshToken });
-  
-  if (!token || !refreshToken) {
-    console.log('No tokens found in storage, user needs to login');
-    return { user: null, token: null };
-  }
-  
-  // Set the token in API client headers immediately
-  const apiClient = (await import('../../api/client')).default;
-  apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-  console.log('Set initial token in API client headers');
-  
-  // Try to refresh the token if needed
   try {
-    const refreshed = await authService.checkAndRefreshToken();
-    console.log('Token refresh attempt result:', refreshed);
+    // Check if user is authenticated with valid token
+    const isAuthenticated = await authService.isAuthenticated();
+    console.log('Authentication check result:', isAuthenticated);
     
-    // Get the possibly refreshed token
-    const currentToken = await AsyncStorage.getItem(TOKEN_KEY);
-    
-    // If we have a token, get the user info
-    if (currentToken) {
-      const user = await authService.getCurrentUser();
-      console.log('Authentication successful, user:', user ? user.username : 'unknown');
-      
-      // Make sure the token is set in API client headers
-      apiClient.defaults.headers.common['Authorization'] = `Bearer ${currentToken}`;
-      
-      return { user, token: currentToken };
+    if (!isAuthenticated) {
+      console.log('Not authenticated, user needs to login');
+      return { user: null, token: null, expiresAt: null };
     }
+    
+    // Get the token, expiry and user info
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const expiresAt = await AsyncStorage.getItem(TOKEN_EXPIRY_KEY);
+    const user = await authService.getCurrentUser();
+    
+    // Set the token in API client headers
+    const apiClient = (await import('../../api/client')).default;
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('Set token in API client headers');
+    
+    console.log('Authentication successful, user:', user ? user.username : 'unknown');
+    return { user, token, expiresAt };
   } catch (error) {
     console.error('Error during authentication check:', error);
+    return { user: null, token: null, expiresAt: null };
   }
-  
-  // If we get here, authentication failed
-  console.log('Authentication check failed, clearing tokens');
-  await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_INFO_KEY]);
-  delete apiClient.defaults.headers.common['Authorization'];
-  
-  return { user: null, token: null };
 });
 
 const authSlice = createSlice({
@@ -88,6 +120,7 @@ const authSlice = createSlice({
   initialState: {
     user: null,
     token: null,
+    expiresAt: null,
     isAuthenticated: false,
     loading: false,
     error: null,
@@ -113,6 +146,10 @@ const authSlice = createSlice({
           // New response structure
           state.token = action.payload.token;
           state.user = action.payload.user || {};
+          // Get expiry from AsyncStorage in the background
+          AsyncStorage.getItem(TOKEN_EXPIRY_KEY).then(expiry => {
+            if (expiry) state.expiresAt = expiry;
+          });
         } else if (action.payload.access_token) {
           // Old response structure
           state.token = action.payload.access_token;
@@ -121,6 +158,10 @@ const authSlice = createSlice({
             username: action.payload.username,
             role: action.payload.role,
           };
+          // Get expiry from AsyncStorage in the background
+          AsyncStorage.getItem(TOKEN_EXPIRY_KEY).then(expiry => {
+            if (expiry) state.expiresAt = expiry;
+          });
         }
         
         console.log('Login fulfilled: Authentication state updated', {
@@ -133,10 +174,35 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload || { message: 'Login failed' };
       })
+      // Refresh token
+      .addCase(refreshToken.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+        state.expiresAt = action.payload.expiresAt;
+        
+        console.log('Token refresh fulfilled: Authentication state updated', {
+          isAuthenticated: state.isAuthenticated,
+          hasToken: !!state.token,
+          hasUser: !!state.user,
+          expiresAt: state.expiresAt ? new Date(parseInt(state.expiresAt)).toISOString() : null
+        });
+      })
+      .addCase(refreshToken.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload || { message: 'Token refresh failed' };
+        // Don't clear auth state here - let the response interceptor handle it
+      })
       // Logout
       .addCase(logout.fulfilled, (state) => {
         state.user = null;
         state.token = null;
+        state.expiresAt = null;
         state.isAuthenticated = false;
       })
       // Check auth
@@ -145,6 +211,7 @@ const authSlice = createSlice({
         state.isAuthenticated = !!action.payload.user;
         state.user = action.payload.user;
         state.token = action.payload.token;
+        state.expiresAt = action.payload.expiresAt;
       });
   },
 });

@@ -57,8 +57,22 @@ export const getBatchById = createAsyncThunk(
   'batches/getById',
   async (batchId, { rejectWithValue }) => {
     try {
-      return await batchService.getBatchById(batchId);
+      console.log(`Fetching batch with ID: ${batchId}`);
+      const result = await batchService.getBatchById(batchId);
+      console.log(`Successfully fetched batch: ${batchId}`);
+      return result;
     } catch (error) {
+      console.error(`Error fetching batch ${batchId}:`, error);
+      // Check if this is an auth error
+      if (error.isAuthError || 
+          error.message?.includes('Authentication') || 
+          error.response?.status === 401) {
+        // Add a flag to identify auth errors
+        return rejectWithValue({
+          message: 'Authentication required',
+          isAuthError: true
+        });
+      }
       return rejectWithValue(
         error.response?.data || { message: 'Failed to fetch batch' }
       );
@@ -113,8 +127,22 @@ export const getBatchStats = createAsyncThunk(
   'batches/getStats',
   async (batchId, { rejectWithValue }) => {
     try {
-      return await batchService.getBatchStats(batchId);
+      console.log(`Fetching stats for batch: ${batchId}`);
+      const result = await batchService.getBatchStats(batchId);
+      console.log(`Successfully fetched stats for batch: ${batchId}`);
+      return result;
     } catch (error) {
+      console.error(`Error fetching stats for batch ${batchId}:`, error);
+      // Check if this is an auth error
+      if (error.isAuthError || 
+          error.message?.includes('Authentication') || 
+          error.response?.status === 401) {
+        // Add a flag to identify auth errors
+        return rejectWithValue({
+          message: 'Authentication required',
+          isAuthError: true
+        });
+      }
       return rejectWithValue(
         error.response?.data || { message: 'Failed to fetch batch statistics' }
       );
@@ -183,8 +211,22 @@ export const getReconciliationStatus = createAsyncThunk(
   'batches/getReconciliationStatus',
   async (batchId, { rejectWithValue }) => {
     try {
-      return await batchService.getReconciliationStatus(batchId);
+      console.log(`Fetching reconciliation status for batch: ${batchId}`);
+      const result = await batchService.getReconciliationStatus(batchId);
+      console.log(`Successfully fetched reconciliation status for batch: ${batchId}`);
+      return result;
     } catch (error) {
+      console.error(`Error getting reconciliation status for batch ${batchId}:`, error);
+      // Check if this is an auth error
+      if (error.isAuthError || 
+          error.message?.includes('Authentication') || 
+          error.response?.status === 401) {
+        // Add a flag to identify auth errors
+        return rejectWithValue({
+          message: 'Authentication required',
+          isAuthError: true
+        });
+      }
       return rejectWithValue(
         error.response?.data || { message: 'Failed to get reconciliation status' }
       );

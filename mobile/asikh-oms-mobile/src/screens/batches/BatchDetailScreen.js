@@ -14,9 +14,11 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Card, Title, Paragraph, Divider, Chip, Button as PaperButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Button from '../../components/Button';
 // Deep linking removed to fix authentication issues
 import { theme } from '../../constants/theme';
+import { TOKEN_KEY } from '../../constants/config';
 import {
   getBatchById,
   getBatchStats,
@@ -35,14 +37,32 @@ export default function BatchDetailScreen({ route, navigation }) {
   const { batchId } = route.params || {};
   
   // Function to load batch data
-  const loadBatchData = useCallback(() => {
+  const loadBatchData = useCallback(async () => {
     if (batchId) {
-      console.log('Loading batch data for batch:', batchId);
-      dispatch(getBatchById(batchId));
-      dispatch(getBatchStats(batchId));
-      dispatch(getReconciliationStatus(batchId));
+      try {
+        // Check if we're authenticated first
+        const token = await AsyncStorage.getItem(TOKEN_KEY);
+        if (!token) {
+          console.log('No token available, redirecting to login');
+          authService.clearAuthAndRedirect(navigation);
+          return;
+        }
+        
+        console.log('Loading batch data for batch:', batchId);
+        // Set token in headers before dispatching actions
+        const apiClient = (await import('../../api/client')).default;
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        
+        // Dispatch actions to fetch data
+        dispatch(getBatchById(batchId));
+        dispatch(getBatchStats(batchId));
+        dispatch(getReconciliationStatus(batchId));
+      } catch (err) {
+        console.error('Error preparing to load batch data:', err);
+        authService.clearAuthAndRedirect(navigation);
+      }
     }
-  }, [batchId, dispatch]);
+  }, [batchId, dispatch, navigation]);
   
   // Load batch details and stats on mount
   useEffect(() => {
@@ -51,11 +71,36 @@ export default function BatchDetailScreen({ route, navigation }) {
   
   // Handle authentication errors
   useEffect(() => {
-    if (error && (error.isAuthError || error.message?.includes('Authentication'))) {
-      // Redirect to login screen
-      authService.clearAuthAndRedirect(navigation);
+    if (error) {
+      console.log('Error in BatchDetailScreen:', error);
+      // Check for auth errors and redirect to login if needed
+      if (error.isAuthError || 
+          error.message?.includes('Authentication') || 
+          error.message?.includes('auth') || 
+          error.response?.status === 401) {
+        console.log('Authentication error detected, redirecting to login');
+        authService.clearAuthAndRedirect(navigation);
+      }
     }
   }, [error, navigation]);
+  
+  // Check authentication on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const isAuthenticated = await authService.isAuthenticated();
+        if (!isAuthenticated) {
+          console.log('Not authenticated, redirecting to login');
+          authService.clearAuthAndRedirect(navigation);
+        }
+      } catch (err) {
+        console.error('Error checking authentication:', err);
+        authService.clearAuthAndRedirect(navigation);
+      }
+    };
+    
+    checkAuth();
+  }, [navigation]);
   
   // Handle pull-to-refresh
   const handleRefresh = () => {
