@@ -18,6 +18,11 @@ const ENV = {
     apiUrl: 'https://asikh-oms-test-cd0577c5c937.herokuapp.com',
     usePin: true, // Temporarily enabled for testing
   },
+  bypass: {
+    // Heroku environment with bypass authentication enabled
+    apiUrl: 'https://asikh-oms-bypass-auth-92db16b23cb6.herokuapp.com',
+    usePin: false, // PIN not needed with bypass authentication
+  },
   production: {
     // Production environment (when you set it up)
     apiUrl: 'https://asikh-oms-prod.herokuapp.com', // Update this when you deploy to production
@@ -25,8 +30,8 @@ const ENV = {
   },
 };
 
-// Set the current environment - 'test' for Heroku, 'development' for local
-const CURRENT_ENV = 'test';
+// Set the current environment - 'bypass' for unauthenticated Heroku, 'test' for authenticated Heroku, 'development' for local
+const CURRENT_ENV = 'bypass';
 
 // Export the API base URL based on the current environment
 export const API_BASE_URL = ENV[CURRENT_ENV].apiUrl;
