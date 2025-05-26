@@ -17,7 +17,8 @@ import {
   USER_INFO_KEY, 
   USE_PIN_AUTH, 
   PIN_LENGTH,
-  DEFAULT_PIN 
+  DEFAULT_PIN,
+  REQUIRE_AUTHENTICATION
 } from '../constants/config';
 
 const LoginSchema = Yup.object().shape({
@@ -57,7 +58,24 @@ export default function LoginScreen({ navigation }) {
       .get('/health')
       .then((res) => console.log('API OK:', res.data))
       .catch((err) => console.error('API ❌', err.message));
-  }, []);
+      
+    // If authentication is not required, auto-login as admin
+    if (!REQUIRE_AUTHENTICATION) {
+      console.log('Authentication bypassed - auto-login as admin');
+      // Store admin user info in AsyncStorage
+      const adminUser = {
+        username: 'admin',
+        role: 'admin',
+        user_id: '00000000-0000-0000-0000-000000000000'
+      };
+      AsyncStorage.setItem(USER_INFO_KEY, JSON.stringify(adminUser));
+      // Navigate to the main app
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Main' }],
+      });
+    }
+  }, [navigation]);
 
   const handleLogin = async (values) => {
     try {

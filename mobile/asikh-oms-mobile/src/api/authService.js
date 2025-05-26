@@ -1,5 +1,5 @@
 // src/api/authService.js
-import { API_BASE_URL, DEFAULT_PIN } from '../constants/config';
+import { API_BASE_URL, DEFAULT_PIN, REQUIRE_AUTHENTICATION } from '../constants/config';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient, { login, logout, getCurrentUser, isAuthenticated } from './client';
@@ -18,6 +18,11 @@ export const authService = {
 
   // Check if user is authenticated
   async isAuthenticated() {
+    // If authentication is not required, always return true
+    if (!REQUIRE_AUTHENTICATION) {
+      console.log('Authentication bypassed - always authenticated');
+      return true;
+    }
     return isAuthenticated();
   },
 

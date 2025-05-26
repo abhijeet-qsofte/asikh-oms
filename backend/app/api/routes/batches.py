@@ -9,6 +9,12 @@ from datetime import datetime
 
 from app.core.database import get_db_dependency
 from app.core.security import get_current_user, check_user_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role
+
+# Use bypass authentication instead of real authentication
+use_bypass_auth = True
+get_user = get_bypass_user if use_bypass_auth else get_current_user
+check_role = check_bypass_role if use_bypass_auth else check_user_role
 from app.models.user import User
 from app.models.batch import Batch
 from app.models.crate import Crate
@@ -60,7 +66,7 @@ def get_reconciliation_status(batch_id, batch, db=None):
 async def get_batch_reconciliation_status(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get reconciliation status for a batch
@@ -141,7 +147,7 @@ async def get_batch_reconciliation_status(
 async def create_batch(
     batch_data: BatchCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Create a new batch
@@ -263,7 +269,7 @@ async def create_batch(
 async def get_batch(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a batch by ID
@@ -306,7 +312,7 @@ async def get_batch(
 async def get_batch_by_code(
     batch_code: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a batch by batch code
@@ -356,7 +362,7 @@ async def list_batches(
     to_location: Optional[uuid.UUID] = None,
     supervisor_id: Optional[uuid.UUID] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     List all batches with pagination and filtering
@@ -490,7 +496,7 @@ async def update_batch(
     batch_id: uuid.UUID,
     batch_data: BatchUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Update a batch
@@ -617,7 +623,7 @@ async def update_batch(
 async def mark_batch_departed(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Mark a batch as departed (in_transit)
@@ -674,7 +680,7 @@ async def mark_batch_departed(
 async def mark_batch_arrived(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Mark a batch as arrived (delivered)
@@ -738,7 +744,7 @@ async def get_batch_crates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get all crates in a batch
@@ -815,7 +821,7 @@ async def get_batch_crates(
 async def get_batch_stats(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get statistics for a batch
@@ -913,7 +919,7 @@ async def add_crate_to_batch(
     batch_id: uuid.UUID,
     crate_data: dict,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Add a crate to a batch
@@ -982,7 +988,7 @@ async def reconcile_crate(
     batch_id: uuid.UUID,
     crate_data: dict,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Reconcile a crate with a batch
@@ -1154,7 +1160,7 @@ async def reconcile_crate(
 async def get_reconciliation_stats(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get reconciliation statistics for a batch
@@ -1223,7 +1229,7 @@ async def get_reconciliation_stats(
 async def get_batch_weight_details(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get detailed weight information for a batch
@@ -1301,7 +1307,7 @@ async def get_batch_weight_details(
 async def close_batch(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Close a batch after reconciliation is complete

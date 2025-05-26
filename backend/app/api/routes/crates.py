@@ -11,7 +11,13 @@ import json
 
 from app.core.database import get_db_dependency
 from app.core.security import get_current_user, check_user_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role
 from app.models.user import User
+
+# Use bypass authentication instead of real authentication
+use_bypass_auth = True
+get_user = get_bypass_user if use_bypass_auth else get_current_user
+check_role = check_bypass_role if use_bypass_auth else check_user_role
 from app.models.crate import Crate
 from app.models.qr_code import QRCode
 from app.models.variety import Variety
@@ -34,7 +40,7 @@ async def create_crate(
     crate_data: CrateCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "harvester", "supervisor", "manager"]))
 ):
     """
     Create a new crate record with harvesting data
@@ -152,7 +158,7 @@ async def create_crate(
 async def get_crate(
     crate_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a crate by ID
@@ -197,7 +203,7 @@ async def get_crate(
 async def get_crate_by_qr_code(
     qr_code: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a crate by QR code
@@ -243,7 +249,7 @@ async def update_crate(
     crate_id: uuid.UUID,
     crate_data: CrateUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "harvester", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "harvester", "supervisor", "manager"]))
 ):
     """
     Update a crate's details
@@ -314,7 +320,7 @@ async def update_crate(
 async def assign_crate_to_batch(
     assignment: CrateBatchAssign,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Assign a crate to a batch
@@ -391,7 +397,7 @@ async def list_crates(
     to_date: Optional[datetime] = None,
     quality_grade: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     List crates with filtering and pagination
@@ -493,7 +499,7 @@ async def search_crates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Advanced search for crates

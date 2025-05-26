@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 import time
+import os
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -28,6 +29,18 @@ logging.basicConfig(
     format=settings.LOG_FORMAT
 )
 logger = logging.getLogger(__name__)
+
+# Set authentication bypass flag (default to True for development)
+BYPASS_AUTH = os.environ.get('BYPASS_AUTH', 'true').lower() == 'true'
+logger.warning(f"Authentication bypass is {'ENABLED' if BYPASS_AUTH else 'DISABLED'}")
+
+# Update the bypass flag in the bypass_auth module
+try:
+    from app.core.bypass_auth import BYPASS_AUTHENTICATION
+    import app.core.bypass_auth as bypass_auth
+    bypass_auth.BYPASS_AUTHENTICATION = BYPASS_AUTH
+except ImportError:
+    logger.warning("Could not import bypass_auth module")
 
 # Request processing time middleware
 class ProcessTimeMiddleware(BaseHTTPMiddleware):

@@ -32,9 +32,13 @@ const CURRENT_ENV = 'test';
 export const API_BASE_URL = ENV[CURRENT_ENV].apiUrl;
 export const USE_PIN_AUTH = ENV[CURRENT_ENV].usePin;
 
+// Authentication mode - set to false to bypass authentication
+export const REQUIRE_AUTHENTICATION = false;
+
 // For debugging
 console.log('API Base URL:', API_BASE_URL);
 console.log('Using PIN Authentication:', USE_PIN_AUTH);
+console.log('Authentication Required:', REQUIRE_AUTHENTICATION);
 
 // Storage Keys for Authentication
 export const AUTH_CREDENTIALS_KEY = '@asikh:auth_credentials';

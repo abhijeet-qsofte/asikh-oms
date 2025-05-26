@@ -1,7 +1,7 @@
 // src/api/client.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, AUTH_CREDENTIALS_KEY, USER_INFO_KEY } from '../constants/config';
+import { API_BASE_URL, AUTH_CREDENTIALS_KEY, USER_INFO_KEY, REQUIRE_AUTHENTICATION } from '../constants/config';
 
 // Log the API configuration for debugging
 console.log('Creating API client with baseURL:', API_BASE_URL);
@@ -21,6 +21,12 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(async (config) => {
   // Skip auth check for login endpoint to avoid loops
   const isLoginEndpoint = config.url === '/api/auth/login/mobile';
+  
+  // Skip authentication if REQUIRE_AUTHENTICATION is false
+  if (!REQUIRE_AUTHENTICATION) {
+    console.log('Authentication bypassed - running in unauthenticated mode');
+    return config;
+  }
   
   if (!isLoginEndpoint && !config.headers.Authorization) {
     // Try to get user info with JWT token first

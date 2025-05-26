@@ -16,6 +16,7 @@ from app.core.security import (
     verify_password,
     check_user_role
 )
+from app.core.bypass_auth import get_bypass_user, check_bypass_role
 from app.models.user import User
 from app.schemas.user import (
     UserCreate,
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get current user information
@@ -47,7 +48,7 @@ async def get_users(
     active: Optional[bool] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Get all users with pagination and filtering
@@ -91,7 +92,7 @@ async def get_users(
 async def get_user_by_id(
     user_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Get a user by ID
@@ -116,7 +117,7 @@ async def get_user_by_id(
 async def create_user(
     user_data: UserCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Create a new user
@@ -182,7 +183,7 @@ async def update_user(
     user_id: uuid.UUID,
     user_data: UserUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Update a user's information
@@ -260,7 +261,7 @@ async def update_user(
 async def activate_user(
     user_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Activate a user
@@ -286,7 +287,7 @@ async def activate_user(
 async def deactivate_user(
     user_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Deactivate a user
@@ -319,7 +320,7 @@ async def deactivate_user(
 async def change_password(
     password_data: UserPasswordChange,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Change the current user's password
@@ -344,7 +345,7 @@ async def change_password(
 async def admin_reset_password(
     user_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Reset a user's password to a generated temporary password
@@ -388,7 +389,7 @@ class RoleCreate(BaseModel):
 
 @router.get("/roles", response_model=RoleList)
 async def get_roles(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get all available roles in the system
@@ -399,7 +400,7 @@ async def get_roles(
 @router.post("/roles", response_model=RoleList, status_code=status.HTTP_201_CREATED)
 async def add_role(
     role_data: RoleCreate,
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Add a new role to the system
@@ -424,7 +425,7 @@ async def add_role(
 async def delete_role(
     role_name: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Delete a role from the system
