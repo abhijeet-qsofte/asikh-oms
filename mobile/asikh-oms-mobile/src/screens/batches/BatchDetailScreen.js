@@ -48,18 +48,25 @@ export default function BatchDetailScreen({ route, navigation }) {
   const loadBatchData = useCallback(async () => {
     if (batchId) {
       try {
-        // Check if we're authenticated first
-        const token = await AsyncStorage.getItem(TOKEN_KEY);
-        if (!token) {
-          console.log('No token available, redirecting to login');
-          authService.clearAuthAndRedirect(navigation);
-          return;
+        // Import config to check if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        
+        // Only check for token if authentication is required
+        if (REQUIRE_AUTHENTICATION) {
+          // Check if we're authenticated first
+          const token = await AsyncStorage.getItem(TOKEN_KEY);
+          if (!token) {
+            console.log('No token available, redirecting to login');
+            authService.clearAuthAndRedirect(navigation);
+            return;
+          }
+          
+          // Set token in headers before dispatching actions
+          const apiClient = (await import('../../api/client')).default;
+          apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }
         
         console.log('Loading batch data for batch:', batchId);
-        // Set token in headers before dispatching actions
-        const apiClient = (await import('../../api/client')).default;
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Dispatch actions to fetch data
         dispatch(getBatchById(batchId));
@@ -67,7 +74,11 @@ export default function BatchDetailScreen({ route, navigation }) {
         dispatch(getReconciliationStatus(batchId));
       } catch (err) {
         console.error('Error preparing to load batch data:', err);
-        authService.clearAuthAndRedirect(navigation);
+        // Only redirect to login if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        if (REQUIRE_AUTHENTICATION) {
+          authService.clearAuthAndRedirect(navigation);
+        }
       }
     }
   }, [batchId, dispatch, navigation]);
@@ -77,18 +88,34 @@ export default function BatchDetailScreen({ route, navigation }) {
     loadBatchData();
   }, [loadBatchData]);
   
-  // Handle authentication errors
+  // Handle errors
   useEffect(() => {
     if (error) {
       console.log('Error in BatchDetailScreen:', error);
-      // Check for auth errors and redirect to login if needed
-      if (error.isAuthError || 
-          error.message?.includes('Authentication') || 
-          error.message?.includes('auth') || 
-          error.response?.status === 401) {
-        console.log('Authentication error detected, redirecting to login');
-        authService.clearAuthAndRedirect(navigation);
-      }
+      
+      // Import config to check if authentication is required
+      const checkAuthRequirement = async () => {
+        try {
+          const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+          
+          // Only redirect for auth errors if authentication is required
+          if (REQUIRE_AUTHENTICATION && (
+              error.isAuthError || 
+              error.message?.includes('Authentication') || 
+              error.message?.includes('auth') || 
+              error.response?.status === 401)) {
+            console.log('Authentication error detected, redirecting to login');
+            authService.clearAuthAndRedirect(navigation);
+          } else {
+            // For non-auth errors or when auth is not required, just log the error
+            console.log('API error occurred but not redirecting:', error.message || 'Unknown error');
+          }
+        } catch (err) {
+          console.error('Error checking authentication requirement:', err);
+        }
+      };
+      
+      checkAuthRequirement();
     }
   }, [error, navigation]);
   
@@ -96,6 +123,15 @@ export default function BatchDetailScreen({ route, navigation }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        // Import config to check if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        
+        // Skip authentication check if not required
+        if (!REQUIRE_AUTHENTICATION) {
+          console.log('Authentication not required, skipping auth check');
+          return;
+        }
+        
         const isAuthenticated = await authService.isAuthenticated();
         if (!isAuthenticated) {
           console.log('Not authenticated, redirecting to login');
@@ -103,7 +139,11 @@ export default function BatchDetailScreen({ route, navigation }) {
         }
       } catch (err) {
         console.error('Error checking authentication:', err);
-        authService.clearAuthAndRedirect(navigation);
+        // Only redirect if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        if (REQUIRE_AUTHENTICATION) {
+          authService.clearAuthAndRedirect(navigation);
+        }
       }
     };
     

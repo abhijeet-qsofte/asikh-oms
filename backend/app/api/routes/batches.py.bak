@@ -679,7 +679,7 @@ async def mark_batch_departed(
 async def mark_batch_arrived(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Mark a batch as arrived (delivered)
@@ -987,7 +987,7 @@ async def reconcile_crate(
     batch_id: uuid.UUID,
     crate_data: dict,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Reconcile a crate with a batch
@@ -1306,7 +1306,7 @@ async def get_batch_weight_details(
 async def close_batch(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "packhouse"]))
 ):
     """
     Close a batch after reconciliation is complete

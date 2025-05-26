@@ -65,15 +65,35 @@ export default function UserManagementScreen({ navigation }) {
   
   // Check if user is admin
   useEffect(() => {
-    if (user && user.role !== 'admin') {
-      Alert.alert(
-        'Access Denied',
-        'You need administrator privileges to access this section.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-    } else {
-      loadUsers();
-    }
+    const checkAdminAccess = async () => {
+      try {
+        // Import config to check if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        
+        // If authentication is not required, allow access regardless of role
+        if (!REQUIRE_AUTHENTICATION) {
+          console.log('Authentication bypassed - allowing admin access');
+          loadUsers();
+          return;
+        }
+        
+        // Otherwise check if user is admin
+        if (user && user.role !== 'admin') {
+          Alert.alert(
+            'Access Denied',
+            'You need administrator privileges to access this section.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+        } else {
+          loadUsers();
+        }
+      } catch (err) {
+        console.error('Error checking authentication requirement:', err);
+        loadUsers(); // Try to load users anyway
+      }
+    };
+    
+    checkAdminAccess();
     
     // Reset state when component unmounts
     return () => {
@@ -124,8 +144,25 @@ export default function UserManagementScreen({ navigation }) {
     }
   };
   
-  // If not admin, show access denied
-  if (!user || user.role !== 'admin') {
+  // Check if authentication is bypassed
+  const [bypassAuth, setBypassAuth] = useState(false);
+  
+  // Check if authentication is required
+  useEffect(() => {
+    const checkAuthRequirement = async () => {
+      try {
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        setBypassAuth(!REQUIRE_AUTHENTICATION);
+      } catch (err) {
+        console.error('Error checking authentication requirement:', err);
+      }
+    };
+    
+    checkAuthRequirement();
+  }, []);
+  
+  // If not admin and authentication is required, show access denied
+  if (!bypassAuth && (!user || user.role !== 'admin')) {
     return (
       <View style={styles.accessDenied}>
         <Ionicons name="lock-closed" size={64} color={theme.colors.error} />

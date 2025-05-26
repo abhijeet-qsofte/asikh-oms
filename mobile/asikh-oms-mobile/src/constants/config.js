@@ -20,7 +20,7 @@ const ENV = {
   },
   bypass: {
     // Heroku environment with bypass authentication enabled
-    apiUrl: 'https://asikh-oms-bypass-auth-92db16b23cb6.herokuapp.com',
+    apiUrl: 'https://asikh-oms-test-cd0577c5c937.herokuapp.com',
     usePin: false, // PIN not needed with bypass authentication
   },
   production: {
@@ -50,6 +50,7 @@ console.log('Authentication Required:', REQUIRE_AUTHENTICATION);
 export const AUTH_CREDENTIALS_KEY = '@asikh:auth_credentials';
 export const USER_INFO_KEY = '@asikh:user_info';
 export const PIN_AUTH_KEY = '@asikh:pin_auth';
+export const TOKEN_KEY = '@asikh:token';
 
 // PIN Authentication Configuration
 export const DEFAULT_PIN = '1234'; // Default PIN for all users in production

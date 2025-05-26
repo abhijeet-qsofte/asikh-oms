@@ -63,8 +63,8 @@ const batchService = {
   getBatches: async (params = {}) => {
     console.log('batchService.getBatches called with params:', params);
     try {
-      console.log('Making API request to /api/batches/');
-      const response = await apiClient.get('/api/batches/', { params });
+      console.log('Making API request to /api/batches');
+      const response = await apiClient.get('/api/batches', { params });
       console.log('API response from getBatches:', response.data);
       return response.data;
     } catch (error) {

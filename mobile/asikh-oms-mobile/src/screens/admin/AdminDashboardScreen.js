@@ -16,19 +16,35 @@ import { theme } from '../../constants/theme';
 export default function AdminDashboardScreen({ navigation }) {
   const { user } = useSelector((state) => state.auth);
   
-  // Check if user is admin
+  // State to track if authentication is bypassed
+  const [bypassAuth, setBypassAuth] = React.useState(false);
+  
+  // Check if authentication is required and if user is admin
   useEffect(() => {
-    if (user && user.role !== 'admin') {
-      Alert.alert(
-        'Access Denied',
-        'You need administrator privileges to access this section.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
-    }
+    const checkAdminAccess = async () => {
+      try {
+        // Import config to check if authentication is required
+        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
+        setBypassAuth(!REQUIRE_AUTHENTICATION);
+        
+        // If authentication is required, check if user is admin
+        if (REQUIRE_AUTHENTICATION && user && user.role !== 'admin') {
+          Alert.alert(
+            'Access Denied',
+            'You need administrator privileges to access this section.',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+        }
+      } catch (err) {
+        console.error('Error checking authentication requirement:', err);
+      }
+    };
+    
+    checkAdminAccess();
   }, [user, navigation]);
   
-  // If not admin, show access denied
-  if (!user || user.role !== 'admin') {
+  // If authentication is required and user is not admin, show access denied
+  if (!bypassAuth && (!user || user.role !== 'admin')) {
     return (
       <View style={styles.accessDenied}>
         <Ionicons name="lock-closed" size={64} color={theme.colors.error} />
