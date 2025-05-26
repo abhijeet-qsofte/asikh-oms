@@ -21,7 +21,10 @@ from app.schemas.authentication import (
     RefreshTokenRequest, 
     RefreshTokenResponse,
     PasswordResetRequest,
-    PasswordResetVerify
+    PasswordResetVerify,
+    PinLoginRequest,
+    SetPinRequest,
+    SetPinResponse
 )
 from app.schemas.token import TokenPayload
 from jose import jwt, JWTError
@@ -151,6 +154,125 @@ async def mobile_login(
         role=user.role,
         min_mobile_app_version=settings.MIN_MOBILE_APP_VERSION,
         force_upgrade_version=settings.FORCE_UPGRADE_VERSION
+    )
+
+@router.post("/login/pin", response_model=LoginResponse)
+async def pin_login(
+    login_data: PinLoginRequest,
+    db: Session = Depends(get_db_dependency)
+):
+    """
+    PIN-based login for mobile app that accepts a username and PIN
+    """
+    # Find the user by username
+    user = db.query(User).filter(User.username == login_data.username).first()
+    
+    # Check if user exists and has a PIN set
+    if not user or not user.pin:
+        logger.warning(f"Failed PIN login attempt for username: {login_data.username} - User not found or PIN not set")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or PIN not set",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Check if PIN is correct
+    if not verify_password(login_data.pin, user.pin):
+        logger.warning(f"Failed PIN login attempt for username: {login_data.username} - Incorrect PIN")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect PIN",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Check if user is active
+    if not user.active:
+        logger.warning(f"PIN login attempt for inactive user: {login_data.username}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account",
+        )
+    
+    # Create access and refresh tokens
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
+    
+    access_token = create_access_token(
+        subject=str(user.id), expires_delta=access_token_expires
+    )
+    refresh_token = create_refresh_token(
+        subject=str(user.id), expires_delta=refresh_token_expires
+    )
+    
+    # Update last login time
+    user.last_login = datetime.utcnow()
+    
+    # Optionally store device info if provided
+    if login_data.device_info:
+        # In a real app, you might store this in a user_devices table
+        logger.info(f"Device info for user {user.username}: {login_data.device_info}")
+    
+    db.commit()
+    
+    # Log the successful login
+    logger.info(f"User {user.username} logged in successfully via PIN")
+    
+    # Return tokens and user info
+    return LoginResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_at=int((datetime.utcnow() + access_token_expires).timestamp()),
+        user_id=str(user.id),
+        username=user.username,
+        role=user.role,
+        min_mobile_app_version=settings.MIN_MOBILE_APP_VERSION,
+        force_upgrade_version=settings.FORCE_UPGRADE_VERSION
+    )
+
+@router.post("/set-pin", response_model=SetPinResponse)
+async def set_pin(
+    request: SetPinRequest,
+    db: Session = Depends(get_db_dependency)
+):
+    """
+    Set or update a user's PIN after verifying their password
+    """
+    # Find the user by username
+    user = db.query(User).filter(User.username == request.username).first()
+    
+    # Check if user exists and password is correct
+    if not user or not verify_password(request.password, user.password):
+        logger.warning(f"Failed PIN setup attempt for username: {request.username} - Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Check if user is active
+    if not user.active:
+        logger.warning(f"PIN setup attempt for inactive user: {request.username}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account",
+        )
+    
+    # Hash the PIN
+    hashed_pin = get_password_hash(request.pin)
+    
+    # Update the user's PIN
+    user.pin = hashed_pin
+    user.pin_set_at = datetime.utcnow()
+    db.commit()
+    
+    # Log the successful PIN setup
+    logger.info(f"User {user.username} successfully set/updated their PIN")
+    
+    return SetPinResponse(
+        success=True,
+        message="PIN successfully set",
+        username=user.username
     )
 
 @router.post("/refresh", response_model=RefreshTokenResponse)

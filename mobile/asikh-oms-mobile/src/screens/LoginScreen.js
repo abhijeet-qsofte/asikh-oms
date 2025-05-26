@@ -1,27 +1,42 @@
 // src/screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Text, Image } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Text, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
 import Button from '../components/Button';
 import TextInput from '../components/TextInput';
-import { login, clearError } from '../store/slices/authSlice';
+import { login, clearError, loginWithPin } from '../store/slices/authSlice';
 import { getDeviceInfo } from '../utils/deviceInfo';
 import { theme } from '../constants/theme';
 import apiClient from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL, AUTH_CREDENTIALS_KEY, USER_INFO_KEY } from '../constants/config';
+import { 
+  API_BASE_URL, 
+  AUTH_CREDENTIALS_KEY, 
+  USER_INFO_KEY, 
+  USE_PIN_AUTH, 
+  PIN_LENGTH,
+  DEFAULT_PIN 
+} from '../constants/config';
 
 const LoginSchema = Yup.object().shape({
   username: Yup.string().required('Username is required'),
   password: Yup.string().required('Password is required'),
 });
 
-export default function LoginScreen() {
+const PinSchema = Yup.object().shape({
+  pin: Yup.string()
+    .required('PIN is required')
+    .length(PIN_LENGTH, `PIN must be exactly ${PIN_LENGTH} digits`)
+    .matches(/^\d+$/, 'PIN must contain only digits'),
+});
+
+export default function LoginScreen({ navigation }) {
   const dispatch = useDispatch();
   const { loading, error } = useSelector((state) => state.auth);
   const [deviceInfo, setDeviceInfo] = useState(null);
+  const [showPinLogin, setShowPinLogin] = useState(USE_PIN_AUTH);
 
   useEffect(() => {
     const fetchDeviceInfo = async () => {
@@ -66,9 +81,38 @@ export default function LoginScreen() {
       console.error('Login error:', err);
     }
   };
+  
+  const handlePinLogin = async (values) => {
+    try {
+      console.log('Attempting PIN login');
+      
+      // Clear any existing auth data before login
+      if (AUTH_CREDENTIALS_KEY) await AsyncStorage.removeItem(AUTH_CREDENTIALS_KEY);
+      if (USER_INFO_KEY) await AsyncStorage.removeItem(USER_INFO_KEY);
+      console.log('Cleared existing authentication data');
+      
+      // Dispatch PIN login action
+      await dispatch(
+        loginWithPin({
+          pin: values.pin,
+        })
+      ).unwrap();
+      
+      console.log('PIN login successful');
+    } catch (err) {
+      console.error('PIN login error:', err);
+    }
+  };
+  
+  const toggleLoginMethod = () => {
+    setShowPinLogin(!showPinLogin);
+  };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
       <View style={styles.header}>
         <Image
           source={require('../assets/images/icon.png')}
@@ -76,66 +120,138 @@ export default function LoginScreen() {
           resizeMode="contain"
         />
         <Text style={styles.title}>Mango Harvester</Text>
-        <Text style={styles.subtitle}>Login to continue</Text>
+        <Text style={styles.subtitle}>
+          {showPinLogin ? 'Enter PIN to continue' : 'Login to continue'}
+        </Text>
       </View>
 
-      <Formik
-        initialValues={{ username: '', password: '' }}
-        validationSchema={LoginSchema}
-        onSubmit={handleLogin}
-      >
-        {({
-          handleChange,
-          handleBlur,
-          handleSubmit,
-          values,
-          errors,
-          touched,
-        }) => (
-          <View style={styles.form}>
-            <TextInput
-              label="Username"
-              value={values.username}
-              onChangeText={handleChange('username')}
-              onBlur={handleBlur('username')}
-              error={touched.username && errors.username}
-              errorText={touched.username && errors.username}
-              autoCapitalize="none"
-            />
+      {showPinLogin ? (
+        <Formik
+          initialValues={{ pin: '' }}
+          validationSchema={PinSchema}
+          onSubmit={handlePinLogin}
+        >
+          {({
+            handleChange,
+            handleBlur,
+            handleSubmit,
+            values,
+            errors,
+            touched,
+          }) => (
+            <View style={styles.form}>
+              <TextInput
+                label="PIN"
+                value={values.pin}
+                onChangeText={handleChange('pin')}
+                onBlur={handleBlur('pin')}
+                error={touched.pin && errors.pin}
+                errorText={touched.pin && errors.pin}
+                keyboardType="numeric"
+                maxLength={PIN_LENGTH}
+                secureTextEntry
+              />
 
-            <TextInput
-              label="Password"
-              value={values.password}
-              onChangeText={handleChange('password')}
-              onBlur={handleBlur('password')}
-              error={touched.password && errors.password}
-              errorText={touched.password && errors.password}
-              secureTextEntry
-            />
+              {error && (
+                <Text style={styles.errorText}>
+                  {error.message || 'Authentication failed'}
+                </Text>
+              )}
 
-            {error && (
-              <Text style={styles.errorText}>
-                {error.message || 'Authentication failed'}
-              </Text>
-            )}
+              <Button
+                mode="contained"
+                onPress={handleSubmit}
+                loading={loading}
+                disabled={loading}
+              >
+                Login with PIN
+              </Button>
+              
+              {/* Only show toggle button if we're not in production-only mode */}
+              {!USE_PIN_AUTH && (
+                <TouchableOpacity 
+                  onPress={toggleLoginMethod}
+                  style={styles.toggleButton}
+                >
+                  <Text style={styles.toggleText}>Use Username & Password</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </Formik>
+      ) : (
+        <Formik
+          initialValues={{ username: '', password: '' }}
+          validationSchema={LoginSchema}
+          onSubmit={handleLogin}
+        >
+          {({
+            handleChange,
+            handleBlur,
+            handleSubmit,
+            values,
+            errors,
+            touched,
+          }) => (
+            <View style={styles.form}>
+              <TextInput
+                label="Username"
+                value={values.username}
+                onChangeText={handleChange('username')}
+                onBlur={handleBlur('username')}
+                error={touched.username && errors.username}
+                errorText={touched.username && errors.username}
+                autoCapitalize="none"
+              />
 
-            <Button
-              mode="contained"
-              onPress={handleSubmit}
-              loading={loading}
-              disabled={loading}
-            >
-              Login
-            </Button>
-          </View>
-        )}
-      </Formik>
+              <TextInput
+                label="Password"
+                value={values.password}
+                onChangeText={handleChange('password')}
+                onBlur={handleBlur('password')}
+                error={touched.password && errors.password}
+                errorText={touched.password && errors.password}
+                secureTextEntry
+              />
+
+              {error && (
+                <Text style={styles.errorText}>
+                  {error.message || 'Authentication failed'}
+                </Text>
+              )}
+
+              <Button
+                mode="contained"
+                onPress={handleSubmit}
+                loading={loading}
+                disabled={loading}
+              >
+                Login
+              </Button>
+              
+              <TouchableOpacity 
+                onPress={toggleLoginMethod}
+                style={styles.toggleButton}
+              >
+                <Text style={styles.toggleText}>Use PIN</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Formik>
+      )}
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Asikh Order Management System</Text>
         <Text style={styles.version}>Version 1.0.0</Text>
+        
+        <TouchableOpacity 
+          onPress={() => navigation && navigation.navigate('AdminPinSetup')}
+          style={styles.adminButton}
+        >
+          <Text style={styles.adminButtonText}>Initialize Admin PIN</Text>
+        </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -184,5 +300,26 @@ const styles = StyleSheet.create({
   version: {
     fontSize: 12,
     color: theme.colors.placeholder,
+  },
+  adminButton: {
+    marginTop: 20,
+    padding: 10,
+    backgroundColor: theme.colors.surface,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+  },
+  adminButtonText: {
+    color: theme.colors.primary,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  toggleButton: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  toggleText: {
+    color: theme.colors.primary,
+    textDecorationLine: 'underline',
   },
 });

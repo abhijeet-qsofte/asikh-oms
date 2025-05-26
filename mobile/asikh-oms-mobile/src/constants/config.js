@@ -11,14 +11,17 @@ const ENV = {
     apiUrl: Constants.manifest?.debuggerHost
       ? `http://${Constants.manifest.debuggerHost.split(':')[0]}:8000`
       : `http://${Platform.OS === 'android' ? '10.0.2.2' : 'localhost'}:8000`,
+    usePin: false, // Use regular username/password in development
   },
   test: {
     // Heroku test environment - using full domain name to avoid JWT signature issues
     apiUrl: 'https://asikh-oms-test-cd0577c5c937.herokuapp.com',
+    usePin: true, // Temporarily enabled for testing
   },
   production: {
     // Production environment (when you set it up)
     apiUrl: 'https://asikh-oms-prod.herokuapp.com', // Update this when you deploy to production
+    usePin: true, // Use PIN-based authentication in production
   },
 };
 
@@ -27,13 +30,20 @@ const CURRENT_ENV = 'test';
 
 // Export the API base URL based on the current environment
 export const API_BASE_URL = ENV[CURRENT_ENV].apiUrl;
+export const USE_PIN_AUTH = ENV[CURRENT_ENV].usePin;
 
 // For debugging
 console.log('API Base URL:', API_BASE_URL);
+console.log('Using PIN Authentication:', USE_PIN_AUTH);
 
-// Storage Keys for Basic Authentication
+// Storage Keys for Authentication
 export const AUTH_CREDENTIALS_KEY = '@asikh:auth_credentials';
 export const USER_INFO_KEY = '@asikh:user_info';
+export const PIN_AUTH_KEY = '@asikh:pin_auth';
+
+// PIN Authentication Configuration
+export const DEFAULT_PIN = '1234'; // Default PIN for all users in production
+export const PIN_LENGTH = 4;
 
 // App Configuration
 export const APP_VERSION = '1.0.0';

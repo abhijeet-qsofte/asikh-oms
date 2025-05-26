@@ -1,5 +1,7 @@
 // src/api/authService.js
-import { API_BASE_URL } from '../constants/config';
+import { API_BASE_URL, DEFAULT_PIN } from '../constants/config';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiClient, { login, logout, getCurrentUser, isAuthenticated } from './client';
 
 // Simple auth service that delegates to client.js
@@ -75,6 +77,71 @@ export const authService = {
     } catch (error) {
       console.error('Failed to initialize auth service:', error);
       return { success: false, error: error.message };
+    }
+  },
+  
+  // Verify PIN - used for PIN-based authentication
+  async verifyPin(pin, storedPin = DEFAULT_PIN) {
+    // Simple PIN verification for local testing
+    if (__DEV__ && !API_BASE_URL.includes('herokuapp.com')) {
+      console.log('Using local PIN verification in dev mode');
+      return pin === storedPin;
+    }
+    
+    // Get stored credentials
+    try {
+      const credentials = await AsyncStorage.getItem('auth_credentials');
+      if (!credentials) {
+        console.error('No stored credentials found for PIN verification');
+        return false;
+      }
+      
+      const { username } = JSON.parse(credentials);
+      
+      // Use the backend PIN login endpoint
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login/pin`, {
+        username,
+        pin,
+        device_info: { platform: 'mobile', app_version: '1.0.0' }
+      });
+      
+      if (response.data && response.data.access_token) {
+        // Store the new tokens
+        await AsyncStorage.setItem('user_info', JSON.stringify(response.data));
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('PIN verification failed:', error);
+      return false;
+    }
+  },
+  
+  // Set PIN - used to initialize or update a user's PIN
+  async setPin(username, password, pin) {
+    try {
+      console.log('Setting PIN for user:', username);
+      
+      // Call the backend set-pin endpoint
+      const response = await axios.post(`${API_BASE_URL}/api/auth/set-pin`, {
+        username,
+        password,
+        pin
+      });
+      
+      if (response.data && response.data.success) {
+        console.log('PIN set successfully');
+        return { success: true, message: response.data.message };
+      }
+      
+      return { success: false, error: 'Failed to set PIN' };
+    } catch (error) {
+      console.error('Error setting PIN:', error);
+      return { 
+        success: false, 
+        error: error.response?.data?.detail || error.message || 'Failed to set PIN'
+      };
     }
   },
 };

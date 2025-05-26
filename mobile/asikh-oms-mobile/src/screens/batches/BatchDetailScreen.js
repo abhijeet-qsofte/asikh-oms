@@ -32,6 +32,14 @@ export default function BatchDetailScreen({ route, navigation }) {
   const dispatch = useDispatch();
   const { currentBatch, batchStats, loading, error } = useSelector((state) => state.batches);
   const [refreshing, setRefreshing] = useState(false);
+  const [localBatch, setLocalBatch] = useState(null);
+  
+  // Update local batch state when currentBatch changes
+  useEffect(() => {
+    if (currentBatch) {
+      setLocalBatch(currentBatch);
+    }
+  }, [currentBatch]);
   
   // Get batch ID from route params
   const { batchId } = route.params || {};
@@ -224,7 +232,7 @@ export default function BatchDetailScreen({ route, navigation }) {
   }
   
   // Render if no batch found
-  if (!currentBatch) {
+  if (!localBatch) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="help-circle-outline" size={48} color={theme.colors.placeholder} />
@@ -299,10 +307,10 @@ export default function BatchDetailScreen({ route, navigation }) {
       <View style={styles.header}>
         <Text style={styles.title}>Batch Details</Text>
         <Chip
-          style={[styles.statusChip, { backgroundColor: getStatusColor(currentBatch.status) }]}
+          style={[styles.statusChip, { backgroundColor: getStatusColor(localBatch?.status || 'unknown') }]}
           textStyle={styles.statusText}
         >
-          {currentBatch.status.replace('_', ' ').toUpperCase()}
+          {(localBatch?.status || 'unknown').replace('_', ' ').toUpperCase()}
         </Chip>
       </View>
       
@@ -312,7 +320,7 @@ export default function BatchDetailScreen({ route, navigation }) {
             <Ionicons name="qr-code" size={28} color={theme.colors.primary} style={styles.qrIcon} />
             <View>
               <Text style={styles.qrLabel}>QR Code</Text>
-              <Text style={styles.qrCode}>{currentBatch.batch_code}</Text>
+              <Text style={styles.qrCode}>{localBatch?.batch_code || 'N/A'}</Text>
             </View>
           </View>
         </Card.Content>
@@ -327,64 +335,64 @@ export default function BatchDetailScreen({ route, navigation }) {
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Batch Code:</Text>
-            <Text style={styles.infoValue}>{currentBatch.batch_code}</Text>
+            <Text style={styles.infoValue}>{localBatch?.batch_code || 'N/A'}</Text>
           </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Supervisor:</Text>
-            <Text style={styles.infoValue}>{currentBatch.supervisor_name}</Text>
+            <Text style={styles.infoValue}>{localBatch?.supervisor_name || 'N/A'}</Text>
           </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Created:</Text>
-            <Text style={styles.infoValue}>{formatDate(currentBatch.created_at)}</Text>
+            <Text style={styles.infoValue}>{formatDate(localBatch?.created_at)}</Text>
           </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>From:</Text>
-            <Text style={styles.infoValue}>{currentBatch.from_location_name}</Text>
+            <Text style={styles.infoValue}>{localBatch?.from_location_name || 'N/A'}</Text>
           </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>To:</Text>
-            <Text style={styles.infoValue}>{currentBatch.to_location_name}</Text>
+            <Text style={styles.infoValue}>{localBatch?.to_location_name || 'N/A'}</Text>
           </View>
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Transport:</Text>
-            <Text style={styles.infoValue}>{currentBatch.transport_mode}</Text>
+            <Text style={styles.infoValue}>{localBatch?.transport_mode || 'N/A'}</Text>
           </View>
           
-          {currentBatch.vehicle_number && (
+          {localBatch?.vehicle_number && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Vehicle:</Text>
-              <Text style={styles.infoValue}>{currentBatch.vehicle_number}</Text>
+              <Text style={styles.infoValue}>{localBatch.vehicle_number}</Text>
             </View>
           )}
           
-          {currentBatch.driver_name && (
+          {localBatch?.driver_name && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Driver:</Text>
-              <Text style={styles.infoValue}>{currentBatch.driver_name}</Text>
+              <Text style={styles.infoValue}>{localBatch.driver_name}</Text>
             </View>
           )}
           
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>ETA:</Text>
-            <Text style={styles.infoValue}>{formatDate(currentBatch.eta)}</Text>
+            <Text style={styles.infoValue}>{formatDate(localBatch?.eta)}</Text>
           </View>
           
-          {currentBatch.departure_time && (
+          {localBatch?.departure_time && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Departed:</Text>
-              <Text style={styles.infoValue}>{formatDate(currentBatch.departure_time)}</Text>
+              <Text style={styles.infoValue}>{formatDate(localBatch.departure_time)}</Text>
             </View>
           )}
           
-          {currentBatch.arrival_time && (
+          {localBatch?.arrival_time && (
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Arrived:</Text>
-              <Text style={styles.infoValue}>{formatDate(currentBatch.arrival_time)}</Text>
+              <Text style={styles.infoValue}>{formatDate(localBatch.arrival_time)}</Text>
             </View>
           )}
         </Card.Content>

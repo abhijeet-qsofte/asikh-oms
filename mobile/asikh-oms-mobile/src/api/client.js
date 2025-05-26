@@ -48,11 +48,36 @@ apiClient.interceptors.request.use(async (config) => {
     }
   }
   
+  // Sanitize params to prevent null values being sent to the backend
+  if (config.params) {
+    // Create a new params object with only non-null values
+    const sanitizedParams = {};
+    Object.keys(config.params).forEach(key => {
+      if (config.params[key] !== null && config.params[key] !== undefined) {
+        sanitizedParams[key] = config.params[key];
+      }
+    });
+    config.params = sanitizedParams;
+  }
+  
+  // Sanitize request body to prevent null values
+  if (config.data && typeof config.data === 'object' && !Array.isArray(config.data)) {
+    const sanitizedData = {};
+    Object.keys(config.data).forEach(key => {
+      if (config.data[key] !== null && config.data[key] !== undefined) {
+        sanitizedData[key] = config.data[key];
+      }
+    });
+    config.data = sanitizedData;
+  }
+  
   if (__DEV__) {
     console.log('Starting API Request:', config.method?.toUpperCase(), config.url);
     if (config.headers.Authorization) {
       console.log('Request includes auth credentials');
     }
+    console.log('Request params:', config.params);
+    console.log('Request data:', config.data);
   }
   
   return config;
@@ -318,6 +343,8 @@ const getCurrentUser = async () => {
   }
 };
 
+// loginWithUsername function removed - using regular login with stored credentials instead
+
 // Export the API client and utility functions
 export default apiClient;
 export {
@@ -327,5 +354,5 @@ export {
   login,
   logout,
   initializeApiClient,
-  getCurrentUser
+  getCurrentUser,
 };

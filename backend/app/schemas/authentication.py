@@ -11,6 +11,14 @@ class LoginRequest(BaseModel):
     device_info: Optional[dict] = None
 
 
+class PinLoginRequest(BaseModel):
+    """Schema for PIN-based login request"""
+    username: str
+    pin: str
+    device_id: Optional[str] = None
+    device_info: Optional[dict] = None
+
+
 class LoginResponse(BaseModel):
     """Schema for login response"""
     access_token: str
@@ -47,3 +55,17 @@ class PasswordResetVerify(BaseModel):
     """Schema for password reset verification"""
     token: str
     new_password: str
+
+
+class SetPinRequest(BaseModel):
+    """Schema for setting or updating a user's PIN"""
+    username: str
+    password: str  # Current password for verification
+    pin: str  # New PIN to set
+
+
+class SetPinResponse(BaseModel):
+    """Schema for set PIN response"""
+    success: bool
+    message: str
+    username: str

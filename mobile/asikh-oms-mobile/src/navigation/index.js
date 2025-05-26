@@ -9,6 +9,7 @@ import { Text } from 'react-native';
 
 // Auth screens
 import LoginScreen from '../screens/LoginScreen';
+import AdminPinSetupScreen from '../screens/AdminPinSetupScreen';
 
 // Main app screens
 import HomeScreen from '../screens/home/HomeScreen';
@@ -43,6 +44,7 @@ const Tab = createBottomTabNavigator();
 const AuthNavigator = () => (
   <AuthStack.Navigator screenOptions={{ headerShown: false }}>
     <AuthStack.Screen name="Login" component={LoginScreen} />
+    <AuthStack.Screen name="AdminPinSetup" component={AdminPinSetupScreen} options={{ headerShown: true, title: 'Admin PIN Setup' }} />
   </AuthStack.Navigator>
 );
 
