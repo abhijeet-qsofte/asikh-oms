@@ -4,6 +4,7 @@ Revision ID: add_pin_to_user
 Revises: 
 Create Date: 2025-05-27 01:05:00.000000
 
+This migration adds PIN authentication fields to the users table.
 """
 from alembic import op
 import sqlalchemy as sa
