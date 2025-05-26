@@ -9,8 +9,13 @@ import logging
 import io
 
 from app.core.database import get_db_dependency
-from app.core.security import get_current_user, check_user_role
+from app.core.security import get_user, check_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 from app.models.user import User
+
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_role
 from app.models.qr_code import QRCode
 from app.schemas.qr_code import (
     QRCodeCreate,
@@ -34,7 +39,7 @@ logger = logging.getLogger(__name__)
 async def create_qr_code(
     qr_data: QRCodeCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Create a new QR code
@@ -91,7 +96,7 @@ async def create_qr_code(
 async def get_qr_code(
     qr_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a QR code by ID
@@ -120,7 +125,7 @@ async def get_qr_code(
 async def get_qr_code_by_value(
     code_value: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a QR code by value
@@ -153,7 +158,7 @@ async def list_qr_codes(
     entity_type: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     List all QR codes with pagination and filtering
@@ -205,7 +210,7 @@ async def update_qr_code(
     qr_id: uuid.UUID,
     qr_data: QRCodeUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Update a QR code's status or entity type
@@ -246,7 +251,7 @@ async def update_qr_code(
 async def create_qr_code_batch(
     batch_data: QRCodeBatch,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Generate a batch of QR codes
@@ -296,7 +301,7 @@ async def create_qr_code_batch(
 async def get_qr_code_image(
     code_value: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a QR code image by code value
@@ -321,7 +326,7 @@ async def download_qr_codes(
     qr_ids: List[uuid.UUID],
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Generate a ZIP file containing QR code images for the specified QR codes
@@ -366,7 +371,7 @@ async def download_qr_codes(
 @router.get("/download/{download_token}")
 async def get_qr_codes_zip(
     download_token: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Download a ZIP file of QR codes using a download token
@@ -399,7 +404,7 @@ async def get_qr_codes_zip(
 async def validate_qr_code_endpoint(
     code_value: str,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Validate a QR code's format and check if it exists in the database

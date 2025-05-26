@@ -87,21 +87,44 @@ export const authService = {
   
   // Verify PIN - used for PIN-based authentication
   async verifyPin(pin, storedPin = DEFAULT_PIN) {
+    // If authentication is not required, always return true
+    if (!REQUIRE_AUTHENTICATION) {
+      console.log('Authentication bypassed - PIN verification always succeeds');
+      return true;
+    }
+    
     // Simple PIN verification for local testing
     if (__DEV__ && !API_BASE_URL.includes('herokuapp.com')) {
       console.log('Using local PIN verification in dev mode');
       return pin === storedPin;
     }
     
-    // Get stored credentials
+    // Get stored credentials or user info
     try {
-      const credentials = await AsyncStorage.getItem('auth_credentials');
-      if (!credentials) {
-        console.error('No stored credentials found for PIN verification');
+      // Try to get user info first
+      const userInfoStr = await AsyncStorage.getItem(USER_INFO_KEY);
+      let username;
+      
+      if (userInfoStr) {
+        const userInfo = JSON.parse(userInfoStr);
+        username = userInfo.username;
+      } else {
+        // Fall back to credentials if no user info
+        const credentialsStr = await AsyncStorage.getItem(AUTH_CREDENTIALS_KEY);
+        if (!credentialsStr) {
+          console.error('No stored credentials or user info found for PIN verification');
+          return false;
+        }
+        const credentials = JSON.parse(credentialsStr);
+        username = credentials.username;
+      }
+      
+      if (!username) {
+        console.error('No username found for PIN verification');
         return false;
       }
       
-      const { username } = JSON.parse(credentials);
+      console.log(`Attempting PIN login for user: ${username}`);
       
       // Use the backend PIN login endpoint
       const response = await axios.post(`${API_BASE_URL}/api/auth/login/pin`, {
@@ -111,20 +134,28 @@ export const authService = {
       });
       
       if (response.data && response.data.access_token) {
-        // Store the new tokens
-        await AsyncStorage.setItem('user_info', JSON.stringify(response.data));
+        console.log('PIN login successful');
+        // Store the new tokens and user info
+        await AsyncStorage.setItem(USER_INFO_KEY, JSON.stringify(response.data));
         return true;
       }
       
+      console.warn('PIN login response did not contain access token');
       return false;
     } catch (error) {
-      console.error('PIN verification failed:', error);
+      console.error('PIN verification failed:', error.response?.data?.detail || error.message);
       return false;
     }
   },
   
   // Set PIN - used to initialize or update a user's PIN
   async setPin(username, password, pin) {
+    // If authentication is not required, just pretend it succeeded
+    if (!REQUIRE_AUTHENTICATION) {
+      console.log('Authentication bypassed - PIN set operation simulated');
+      return { success: true, message: "PIN set successfully (simulated)" };
+    }
+    
     try {
       console.log('Setting PIN for user:', username);
       
@@ -140,12 +171,17 @@ export const authService = {
         return { success: true, message: response.data.message };
       }
       
+      console.warn('Set PIN response did not indicate success:', response.data);
       return { success: false, error: 'Failed to set PIN' };
     } catch (error) {
       console.error('Error setting PIN:', error);
+      // Provide more detailed error information
+      const errorDetail = error.response?.data?.detail || error.message || 'Failed to set PIN';
+      console.error('Error details:', errorDetail);
+      
       return { 
         success: false, 
-        error: error.response?.data?.detail || error.message || 'Failed to set PIN'
+        error: errorDetail
       };
     }
   },

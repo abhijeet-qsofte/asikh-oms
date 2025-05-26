@@ -66,13 +66,20 @@ export default function LoginScreen({ navigation }) {
       const adminUser = {
         username: 'admin',
         role: 'admin',
-        user_id: '00000000-0000-0000-0000-000000000000'
+        user_id: '00000000-0000-0000-0000-000000000000',
+        access_token: 'dummy-token',
+        token_type: 'bearer'
       };
       AsyncStorage.setItem(USER_INFO_KEY, JSON.stringify(adminUser));
-      // Navigate to the main app
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
+      
+      // Instead of using navigation.reset, we'll update the Redux store
+      // This will trigger the AppNavigator to show the TabNavigator
+      dispatch({ 
+        type: 'auth/loginSuccess', 
+        payload: { 
+          user: adminUser,
+          token: 'dummy-token'
+        }
       });
     }
   }, [navigation]);

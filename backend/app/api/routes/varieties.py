@@ -8,8 +8,13 @@ import logging
 from datetime import datetime
 
 from app.core.database import get_db_dependency
-from app.core.security import get_current_user, check_user_role
+from app.core.security import get_user, check_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 from app.models.user import User
+
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_role
 from app.models.variety import Variety
 from app.schemas.variety import (
     VarietyCreate,
@@ -26,7 +31,7 @@ logger = logging.getLogger(__name__)
 async def create_variety(
     variety_data: VarietyCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Create a new mango variety
@@ -70,7 +75,7 @@ async def create_variety(
 async def get_variety(
     variety_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a mango variety by ID
@@ -90,7 +95,7 @@ async def list_varieties(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     List all mango varieties with pagination and optional search
@@ -126,7 +131,7 @@ async def update_variety(
     variety_id: uuid.UUID,
     variety_data: VarietyUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Update a mango variety
@@ -176,7 +181,7 @@ async def update_variety(
 async def delete_variety(
     variety_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Delete a mango variety
@@ -226,7 +231,7 @@ async def get_variety_stats(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get statistics for a specific mango variety

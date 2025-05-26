@@ -9,8 +9,13 @@ from datetime import datetime, timedelta
 import json
 
 from app.core.database import get_db_dependency
-from app.core.security import get_current_user, check_user_role
+from app.core.security import get_user, check_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 from app.models.user import User
+
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_role
 from app.models.crate import Crate
 from app.models.qr_code import QRCode
 from app.models.batch import Batch
@@ -32,7 +37,7 @@ logger = logging.getLogger(__name__)
 async def scan_crate(
     scan_data: ReconciliationScan,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "packhouse", "supervisor", "manager"]))
 ):
     """
     Scan a crate for reconciliation at the packhouse
@@ -180,7 +185,7 @@ async def scan_crate(
 async def get_batch_reconciliation_summary(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get reconciliation summary for a specific batch
@@ -312,7 +317,7 @@ async def get_batch_reconciliation_logs(
     page_size: int = Query(20, ge=1, le=100),
     status: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get all reconciliation logs for a specific batch with pagination
@@ -393,7 +398,7 @@ async def search_reconciliation_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Search reconciliation logs with filters
@@ -481,7 +486,7 @@ async def search_reconciliation_logs(
 async def get_reconciliation_stats(
     days: int = Query(7, ge=1, le=30),
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
     Get overall reconciliation statistics
@@ -586,7 +591,7 @@ async def get_reconciliation_stats(
 async def complete_batch_reconciliation(
     batch_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin", "packhouse", "supervisor", "manager"]))
+    current_user: User = Depends(check_role(["admin", "packhouse", "supervisor", "manager"]))
 ):
     """
     Manually mark a batch as reconciled

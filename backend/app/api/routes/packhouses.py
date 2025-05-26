@@ -8,8 +8,13 @@ import logging
 from datetime import datetime
 
 from app.core.database import get_db_dependency
-from app.core.security import get_current_user, check_user_role
+from app.core.security import get_user, check_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 from app.models.user import User
+
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_role
 from app.models.packhouse import Packhouse
 from app.schemas.packhouse import (
     PackhouseCreate,
@@ -26,7 +31,7 @@ logger = logging.getLogger(__name__)
 async def create_packhouse(
     packhouse_data: PackhouseCreate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Create a new packhouse
@@ -73,7 +78,7 @@ async def create_packhouse(
 async def get_packhouse(
     packhouse_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get a packhouse by ID
@@ -93,7 +98,7 @@ async def list_packhouses(
     page_size: int = Query(20, ge=1, le=100),
     search: Optional[str] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     List all packhouses with pagination and optional search
@@ -130,7 +135,7 @@ async def update_packhouse(
     packhouse_id: uuid.UUID,
     packhouse_data: PackhouseUpdate,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Update a packhouse
@@ -192,7 +197,7 @@ async def update_packhouse(
 async def delete_packhouse(
     packhouse_id: uuid.UUID,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(check_user_role(["admin"]))
+    current_user: User = Depends(check_role(["admin"]))
 ):
     """
     Delete a packhouse
@@ -242,7 +247,7 @@ async def get_packhouse_stats(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_user)
 ):
     """
     Get statistics for a specific packhouse

@@ -9,12 +9,11 @@ from datetime import datetime
 
 from app.core.database import get_db_dependency
 from app.core.security import get_current_user, check_user_role
-from app.core.bypass_auth import get_bypass_user, check_bypass_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 
-# Use bypass authentication instead of real authentication
-use_bypass_auth = True
-get_user = get_bypass_user if use_bypass_auth else get_current_user
-check_role = check_bypass_role if use_bypass_auth else check_user_role
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_current_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_user_role
 from app.models.user import User
 from app.models.batch import Batch
 from app.models.crate import Crate

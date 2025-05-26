@@ -16,8 +16,12 @@ from app.core.security import (
     verify_password,
     check_user_role
 )
-from app.core.bypass_auth import get_bypass_user, check_bypass_role
+from app.core.bypass_auth import get_bypass_user, check_bypass_role, BYPASS_AUTHENTICATION
 from app.models.user import User
+
+# Use bypass authentication based on the environment variable
+get_user = get_bypass_user if BYPASS_AUTHENTICATION else get_current_user
+check_role = check_bypass_role if BYPASS_AUTHENTICATION else check_user_role
 from app.schemas.user import (
     UserCreate,
     UserUpdate,
