@@ -1,4 +1,4 @@
-// src/screens/auth/LoginScreen.js
+// src/screens/LoginScreen.js
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, TouchableOpacity, Text, Image } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,12 +11,7 @@ import { getDeviceInfo } from '../utils/deviceInfo';
 import { theme } from '../constants/theme';
 import apiClient from '../api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  API_BASE_URL,
-  TOKEN_KEY,
-  REFRESH_TOKEN_KEY,
-  USER_INFO_KEY,
-} from '../constants/config';
+import { API_BASE_URL, AUTH_CREDENTIALS_KEY, USER_INFO_KEY } from '../constants/config';
 
 const LoginSchema = Yup.object().shape({
   username: Yup.string().required('Username is required'),
@@ -53,20 +48,16 @@ export default function LoginScreen() {
     try {
       console.log('Attempting login for user:', values.username);
 
-      // Clear any existing tokens before login to prevent token conflicts
-      await AsyncStorage.multiRemove([
-        TOKEN_KEY,
-        REFRESH_TOKEN_KEY,
-        USER_INFO_KEY,
-      ]);
-      console.log('Cleared existing authentication tokens');
+      // Clear any existing auth data before login
+      if (AUTH_CREDENTIALS_KEY) await AsyncStorage.removeItem(AUTH_CREDENTIALS_KEY);
+      if (USER_INFO_KEY) await AsyncStorage.removeItem(USER_INFO_KEY);
+      console.log('Cleared existing authentication data');
 
-      // unwrap to throw on error and capture stack
+      // Dispatch login action with username and password
       await dispatch(
         login({
           username: values.username,
           password: values.password,
-          deviceInfo,
         })
       ).unwrap();
 
