@@ -27,6 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>asikhoms</string>
           <string>com.anonymous.asikhomsmobile</string>
         </array>
       </dict>

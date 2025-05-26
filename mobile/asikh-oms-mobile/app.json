@@ -17,7 +17,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.asikhomsmobile",
-      "associatedDomains": ["applinks:asikhoms.com"]
+      "associatedDomains": [
+        "applinks:asikhoms.com"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +41,10 @@
               "scheme": "asikhoms"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
@@ -53,6 +58,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "405119eb-b251-4d23-9f5a-c20649204278"
+      }
     }
   }
 }
