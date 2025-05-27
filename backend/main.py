@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.staticfiles import StaticFiles
 import time
 import os
 from contextlib import asynccontextmanager
@@ -112,6 +113,9 @@ app.include_router(reconciliation_router, prefix=f"{settings.API_V1_STR}/reconci
 app.include_router(farms_router, prefix=f"{settings.API_V1_STR}/farms", tags=["Farms"])
 app.include_router(packhouses_router, prefix=f"{settings.API_V1_STR}/packhouses", tags=["Packhouses"])
 app.include_router(varieties_router, prefix=f"{settings.API_V1_STR}/varieties", tags=["Varieties"])
+
+# Add static file serving for the images directory
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 @app.get("/", tags=["Health"])
 async def root():

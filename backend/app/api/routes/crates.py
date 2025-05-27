@@ -84,28 +84,27 @@ async def create_crate(
             detail=f"Variety with ID {crate_data.variety_id} not found"
         )
 
-    # Process photo if provided
+    # Process photo if provided - SIMPLIFIED APPROACH
     photo_url = None
     if crate_data.photo_base64:
         try:
-            # This will be handled in a background task
             # Generate a unique filename based on QR code and timestamp
             filename = f"{crate_data.qr_code}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.jpg"
             
-            # Store photo processing in a background task
+            # Set a placeholder URL first
+            photo_url = f"processing/{filename}"
+            
+            # Only store the base64 data in a background task to avoid timeout
+            # This is a critical change to prevent H18 errors
             background_tasks.add_task(
-                save_image,
+                process_photo_async,
                 base64_data=crate_data.photo_base64,
                 filename=filename,
                 crate_qr=crate_data.qr_code,
                 db_session=db
             )
-            
-            # Set temporary URL that will be updated after background task
-            photo_url = f"processing/{filename}"
-        
         except Exception as e:
-            logger.error(f"Error processing photo: {str(e)}")
+            logger.error(f"Error setting up photo processing: {str(e)}")
             # Continue without photo if processing fails
             photo_url = None
 
@@ -578,3 +577,60 @@ async def search_crates(
         page_size=page_size,
         crates=result_items
     )
+
+
+async def process_photo_async(base64_data: str, filename: str, crate_qr: str, db_session: Session):
+    """
+    Process photo asynchronously to avoid request timeouts
+    This function is called as a background task
+    """
+    try:
+        logger.info(f"Starting async photo processing for crate {crate_qr}")
+        
+        # Simple validation to avoid processing invalid data
+        if not base64_data or len(base64_data) < 100:
+            logger.warning(f"Invalid base64 data for crate {crate_qr}")
+            return
+        
+        # Remove base64 header if present
+        if "," in base64_data:
+            base64_data = base64_data.split(",")[1]
+        
+        # Simple size check - if too large, we'll just store a placeholder
+        if len(base64_data) > 1024 * 1024 * 5:  # 5MB
+            logger.warning(f"Image for crate {crate_qr} is too large ({len(base64_data)/1024/1024:.2f}MB), using placeholder")
+            update_crate_with_placeholder(crate_qr, db_session)
+            return
+            
+        # Basic processing - just store the image with minimal processing
+        try:
+            # Decode base64 data
+            image_data = base64.b64decode(base64_data)
+            
+            # Store the file directly
+            image_url = store_file(image_data, filename)
+            
+            # Update crate with the URL
+            crate = db_session.query(Crate).filter(Crate.qr_code == crate_qr).first()
+            if crate:
+                crate.photo_url = image_url
+                db_session.commit()
+                logger.info(f"Updated crate {crate_qr} with photo URL: {image_url}")
+        except Exception as e:
+            logger.error(f"Error processing photo for crate {crate_qr}: {str(e)}")
+            update_crate_with_placeholder(crate_qr, db_session)
+    
+    except Exception as e:
+        logger.error(f"Unhandled error in async photo processing for crate {crate_qr}: {str(e)}")
+
+def update_crate_with_placeholder(crate_qr: str, db_session: Session):
+    """Update crate with a placeholder image URL when processing fails"""
+    try:
+        placeholder_url = "images/placeholder_crate.jpg"
+        crate = db_session.query(Crate).filter(Crate.qr_code == crate_qr).first()
+        if crate:
+            crate.photo_url = placeholder_url
+            db_session.commit()
+            logger.info(f"Updated crate {crate_qr} with placeholder image")
+    except Exception as e:
+        logger.error(f"Error updating crate with placeholder: {str(e)}")

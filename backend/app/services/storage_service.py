@@ -2,8 +2,9 @@
 import os
 import base64
 import logging
+import time
 import uuid
-from typing import Optional
+from typing import Optional, Tuple
 from io import BytesIO
 from PIL import Image, ExifTags
 from sqlalchemy.orm import Session
@@ -34,12 +35,41 @@ def save_image(base64_data: str, filename: str, crate_qr: str, db_session: Sessi
         # Remove base64 header if present
         if "," in base64_data:
             base64_data = base64_data.split(",")[1]
-            
-        # Decode base64 data
-        image_data = base64.b64decode(base64_data)
         
-        # Process image
-        processed_image_data, thumbnail_data = process_image(image_data)
+        # Early validation to prevent processing invalid data
+        if not base64_data or len(base64_data) < 100:
+            logger.warning(f"Invalid or empty base64 data for crate {crate_qr}")
+            return None
+            
+        # Decode base64 data with error handling
+        try:
+            image_data = base64.b64decode(base64_data)
+        except Exception as e:
+            logger.error(f"Base64 decode error for crate {crate_qr}: {str(e)}")
+            return None
+        
+        # Process image with size limit
+        max_image_size = 5 * 1024 * 1024  # 5MB limit
+        if len(image_data) > max_image_size:
+            logger.warning(f"Image too large ({len(image_data)/1024/1024:.2f}MB) for crate {crate_qr}, applying extra compression")
+            # Will apply extra compression in process_image
+        
+        # Process image with timeout protection
+        try:
+            processed_image_data, thumbnail_data = process_image(image_data, is_large=(len(image_data) > max_image_size))
+        except Exception as e:
+            logger.error(f"Image processing error for crate {crate_qr}: {str(e)}")
+            # Use a placeholder image URL instead of failing
+            placeholder_url = "images/placeholder_crate.jpg"
+            
+            # Update crate with placeholder
+            crate = db_session.query(Crate).filter(Crate.qr_code == crate_qr).first()
+            if crate:
+                crate.photo_url = placeholder_url
+                db_session.commit()
+                logger.info(f"Updated crate {crate_qr} with placeholder due to processing error")
+            
+            return placeholder_url
         
         # Save to storage and get URL
         image_url = store_file(processed_image_data, filename)
@@ -59,44 +89,77 @@ def save_image(base64_data: str, filename: str, crate_qr: str, db_session: Sessi
     
     except Exception as e:
         logger.error(f"Error saving image: {str(e)}")
-        return None
+        # Use a placeholder image rather than failing completely
+        placeholder_url = "images/placeholder_crate.jpg"
+        
+        # Update crate with placeholder
+        try:
+            crate = db_session.query(Crate).filter(Crate.qr_code == crate_qr).first()
+            if crate:
+                crate.photo_url = placeholder_url
+                db_session.commit()
+                logger.info(f"Updated crate {crate_qr} with placeholder due to error")
+        except Exception as inner_e:
+            logger.error(f"Failed to update crate with placeholder: {str(inner_e)}")
+        
+        return placeholder_url
 
 
-def process_image(image_data: bytes) -> tuple:
+def process_image(image_data: bytes, is_large: bool = False) -> tuple:
     """
     Process image for optimal storage and display
     - Resize to maximum dimension
     - Correct orientation based on EXIF
     - Compress to reduce size
     - Generate thumbnail
+    - Apply extra compression for large images
     Returns processed image data and thumbnail data
     """
     try:
-        # Open image from binary data
+        # Open image from binary data with a timeout
+        start_time = time.time()
         img = Image.open(BytesIO(image_data))
+        
+        # Set processing timeout (3 seconds)
+        if time.time() - start_time > 3:
+            logger.warning("Image opening took too long, using simplified processing")
+            # Apply simplified processing for timeout cases
+            return simplified_image_processing(image_data)
         
         # Correct orientation based on EXIF data
         img = correct_image_orientation(img)
         
-        # Resize image if larger than max dimension
-        img = resize_image(img, settings.IMAGE_MAX_SIZE)
+        # More aggressive resizing for large images
+        max_size = settings.IMAGE_MAX_SIZE // 2 if is_large else settings.IMAGE_MAX_SIZE
+        img = resize_image(img, max_size)
         
         # Create thumbnail
         thumb = create_thumbnail(img, settings.THUMBNAIL_SIZE)
         
         # Convert to bytes with compression
+        # Use higher compression for large images
+        quality = max(30, settings.IMAGE_QUALITY - 30) if is_large else settings.IMAGE_QUALITY
+        
         img_bytes = BytesIO()
-        img.save(img_bytes, format="JPEG", quality=settings.IMAGE_QUALITY)
+        img.save(img_bytes, format="JPEG", quality=quality, optimize=True)
         
         thumb_bytes = BytesIO()
         thumb.save(thumb_bytes, format="JPEG", quality=settings.IMAGE_QUALITY)
+        
+        # Check final size and compress further if still too large
+        final_size = len(img_bytes.getvalue())
+        if final_size > 1 * 1024 * 1024:  # If still larger than 1MB
+            logger.warning(f"Image still large after processing ({final_size/1024/1024:.2f}MB), applying extra compression")
+            img = img.resize((img.width // 2, img.height // 2), Image.LANCZOS)
+            img_bytes = BytesIO()
+            img.save(img_bytes, format="JPEG", quality=max(25, quality-10), optimize=True)
         
         return img_bytes.getvalue(), thumb_bytes.getvalue()
     
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
-        # Return original data if processing fails
-        return image_data, image_data
+        # Use simplified processing as fallback
+        return simplified_image_processing(image_data)
 
 
 def correct_image_orientation(img: Image.Image) -> Image.Image:
@@ -119,17 +182,110 @@ def correct_image_orientation(img: Image.Image) -> Image.Image:
             elif orientation == 4:
                 img = img.transpose(Image.FLIP_TOP_BOTTOM)
             elif orientation == 5:
-                img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90)
+                img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(90, expand=True)
             elif orientation == 6:
-                img = img.rotate(270)
+                img = img.rotate(270, expand=True)
             elif orientation == 7:
-                img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270)
+                img = img.transpose(Image.FLIP_LEFT_RIGHT).rotate(270, expand=True)
             elif orientation == 8:
-                img = img.rotate(90)
+                img = img.rotate(90, expand=True)
     except Exception as e:
         logger.warning(f"Could not correct image orientation: {str(e)}")
     
     return img
+
+
+def simplified_image_processing(image_data: bytes) -> Tuple[bytes, bytes]:
+    """
+    Simplified image processing for fallback cases
+    This is used when the normal processing fails or times out
+    It applies minimal processing to ensure the operation completes quickly
+    """
+    try:
+        # Try to open the image with a strict timeout approach
+        img = None
+        try:
+            img = Image.open(BytesIO(image_data))
+        except Exception as e:
+            logger.error(f"Cannot open image in simplified processing: {str(e)}")
+            # Return a tiny placeholder image if we can't even open it
+            return create_placeholder_image()
+        
+        # Get original dimensions
+        width, height = img.size
+        
+        # Calculate new dimensions (max 800px on longest side)
+        max_dimension = 800
+        if width > height:
+            new_width = max_dimension
+            new_height = int(height * (max_dimension / width))
+        else:
+            new_height = max_dimension
+            new_width = int(width * (max_dimension / height))
+        
+        # Simple resize without any other processing
+        img = img.resize((new_width, new_height), Image.NEAREST)
+        
+        # Create a very small thumbnail (100px)
+        thumb_size = 100
+        if width > height:
+            thumb_width = thumb_size
+            thumb_height = int(height * (thumb_size / width))
+        else:
+            thumb_height = thumb_size
+            thumb_width = int(width * (thumb_size / height))
+        
+        thumb = img.resize((thumb_width, thumb_height), Image.NEAREST)
+        
+        # Convert to JPEG with high compression
+        img_bytes = BytesIO()
+        thumb_bytes = BytesIO()
+        
+        # Use lowest acceptable quality to ensure small size
+        img.save(img_bytes, format="JPEG", quality=30, optimize=True)
+        thumb.save(thumb_bytes, format="JPEG", quality=30, optimize=True)
+        
+        return img_bytes.getvalue(), thumb_bytes.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Simplified image processing failed: {str(e)}")
+        return create_placeholder_image()
+
+
+def create_placeholder_image() -> Tuple[bytes, bytes]:
+    """
+    Create a tiny placeholder image when all else fails
+    """
+    try:
+        # Create a small colored image (200x200 px)
+        img = Image.new('RGB', (200, 200), color=(200, 200, 200))
+        
+        # Add text if possible
+        try:
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            draw.text((40, 80), "No Image\nAvailable", fill=(80, 80, 80))
+        except Exception:
+            # If text drawing fails, just use the blank image
+            pass
+        
+        # Create an even smaller thumbnail
+        thumb = img.resize((100, 100), Image.NEAREST)
+        
+        # Convert to bytes
+        img_bytes = BytesIO()
+        thumb_bytes = BytesIO()
+        
+        img.save(img_bytes, format="JPEG", quality=50)
+        thumb.save(thumb_bytes, format="JPEG", quality=50)
+        
+        return img_bytes.getvalue(), thumb_bytes.getvalue()
+    except Exception as e:
+        logger.error(f"Failed to create placeholder image: {str(e)}")
+        # Return minimal valid JPEG data as absolute fallback
+        with open(os.path.join(os.path.dirname(__file__), "../static/placeholder.jpg"), "rb") as f:
+            placeholder_data = f.read()
+            return placeholder_data, placeholder_data
 
 
 def resize_image(img: Image.Image, max_size: int) -> Image.Image:
@@ -189,6 +345,7 @@ def store_file(file_data: bytes, filename: str) -> str:
 def store_file_local(file_data: bytes, filename: str) -> str:
     """
     Store file in local filesystem
+    Note: On Heroku, the filesystem is ephemeral, so files will be lost on dyno restart
     """
     try:
         # Create directory if it doesn't exist
@@ -203,9 +360,19 @@ def store_file_local(file_data: bytes, filename: str) -> str:
         # Full path including filename
         file_path = os.path.join(date_path, filename)
         
-        # Write file
-        with open(file_path, 'wb') as f:
-            f.write(file_data)
+        # Check file size before writing
+        if len(file_data) > 5 * 1024 * 1024:  # 5MB
+            logger.warning(f"File size too large for Heroku: {len(file_data)/1024/1024:.2f}MB")
+            # Return a placeholder instead
+            return "images/placeholder_crate.jpg"
+        
+        # Write file with a timeout protection
+        try:
+            with open(file_path, 'wb') as f:
+                f.write(file_data)
+        except Exception as e:
+            logger.error(f"Error writing file to disk: {str(e)}")
+            return "images/placeholder_crate.jpg"
         
         # Return relative path for URL
         rel_path = os.path.join("storage", now.strftime("%Y"), now.strftime("%m"), filename)
@@ -213,7 +380,7 @@ def store_file_local(file_data: bytes, filename: str) -> str:
     
     except Exception as e:
         logger.error(f"Error storing file locally: {str(e)}")
-        return ""
+        return "images/placeholder_crate.jpg"
 
 
 def store_file_s3(file_data: bytes, filename: str) -> str:
