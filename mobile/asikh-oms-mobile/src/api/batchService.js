@@ -17,6 +17,15 @@ const ensureAuthenticated = async () => {
   try {
     console.log('Ensuring authentication before making batch API call');
     
+    // Check if authentication is required based on config
+    const { REQUIRE_AUTHENTICATION } = require('../constants/config');
+    
+    // If authentication is not required, return the client directly
+    if (!REQUIRE_AUTHENTICATION) {
+      console.log('Authentication bypassed - using apiClient with mock token');
+      return apiClient;
+    }
+    
     // Get token directly from AsyncStorage to verify we have one
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     

@@ -25,7 +25,8 @@ apiClient.interceptors.request.use(async (config) => {
   // Skip authentication if REQUIRE_AUTHENTICATION is false
   if (!REQUIRE_AUTHENTICATION) {
     console.log('Authentication bypassed - running in unauthenticated mode');
-    // Don't try to add any auth headers when in bypass mode
+    // Add a mock token for development purposes
+    config.headers.Authorization = 'Bearer mock-token-for-development';
     return config;
   }
   
