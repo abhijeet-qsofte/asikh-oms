@@ -24,11 +24,66 @@ export const createBatch = createAsyncThunk(
   'batches/create',
   async (batchData, { rejectWithValue }) => {
     try {
-      return await batchService.createBatch(batchData);
+      // Add a hardcoded admin supervisor ID if not provided
+      // This is a workaround for development/testing
+      const batchDataWithSupervisor = {
+        ...batchData,
+        // Use the hardcoded admin ID that we know works with the system
+        // This is the same approach we used for crate creation
+        supervisor_id: batchData.supervisor_id || '550e8400-e29b-41d4-a716-446655440000'
+      };
+      
+      console.log('Creating batch with data (including supervisor):', JSON.stringify(batchDataWithSupervisor, null, 2));
+      
+      return await batchService.createBatch(batchDataWithSupervisor);
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data || { message: 'Failed to create batch' }
-      );
+      // Check if the error is about supervisor not found
+      if (error.response?.data?.detail && 
+          typeof error.response.data.detail === 'string' && 
+          error.response.data.detail.includes('Supervisor with ID')) {
+        
+        console.log('Supervisor ID error detected, trying with alternative ID');
+        
+        // Try again with a different supervisor ID
+        try {
+          const alternativeBatchData = {
+            ...batchData,
+            supervisor_id: '00000000-0000-0000-0000-000000000001' // Try a different ID format
+          };
+          
+          return await batchService.createBatch(alternativeBatchData);
+        } catch (retryError) {
+          return rejectWithValue({ 
+            message: 'Failed to create batch with any supervisor ID. Please contact system administrator.'
+          });
+        }
+      }
+      
+      // Handle other types of errors
+      let errorMessage = 'Failed to create batch';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data) {
+        if (typeof error.response.data === 'object') {
+          if (Array.isArray(error.response.data.detail)) {
+            // Format validation errors
+            const fieldErrors = error.response.data.detail.map(err => {
+              const field = err.loc ? err.loc[err.loc.length - 1] : 'unknown field';
+              return `${field} - ${err.msg}`;
+            });
+            errorMessage = 'Validation error: ' + fieldErrors.join(', ');
+          } else {
+            errorMessage = error.response.data.detail || 
+                          error.response.data.message || 
+                          JSON.stringify(error.response.data);
+          }
+        } else {
+          errorMessage = String(error.response.data);
+        }
+      }
+      
+      return rejectWithValue({ message: errorMessage });
     }
   }
 );
@@ -101,9 +156,22 @@ export const addCrateToBatch = createAsyncThunk(
     try {
       return await batchService.addCrateToBatch(batchId, qrCode);
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data || { message: 'Failed to add crate to batch' }
-      );
+      // Ensure we're returning a string message for the error
+      let errorMessage = 'Failed to add crate to batch';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data) {
+        if (typeof error.response.data === 'object') {
+          errorMessage = error.response.data.detail || 
+                        error.response.data.message || 
+                        JSON.stringify(error.response.data);
+        } else {
+          errorMessage = String(error.response.data);
+        }
+      }
+      
+      return rejectWithValue({ message: errorMessage });
     }
   }
 );

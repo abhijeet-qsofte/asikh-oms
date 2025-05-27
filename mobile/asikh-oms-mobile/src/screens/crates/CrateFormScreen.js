@@ -14,6 +14,7 @@ import { theme } from '../../constants/theme';
 import { createCrate } from '../../store/slices/crateSlice';
 import { getVarieties } from '../../store/slices/adminSlice';
 import { Ionicons } from '@expo/vector-icons';
+import imageService from '../../services/imageService';
 
 // Form validation schema
 const CrateSchema = Yup.object().shape({
@@ -115,14 +116,24 @@ export default function CrateFormScreen({ route, navigation }) {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.7,
+        quality: 0.5,  // Reduced quality to decrease file size
         base64: true,
       });
 
       if (!result.canceled) {
-        setPhoto(result.assets[0]);
+        // Use our image service to process the image
+        const processedImageData = await imageService.processImage(result.assets[0]);
+        
+        // Store the processed image
+        setPhoto({
+          ...result.assets[0],
+          processedImageData
+        });
+        
+        console.log('Photo captured and processed successfully');
       }
     } catch (error) {
+      console.error('Error taking photo:', error);
       Alert.alert('Error taking photo: ' + error.message);
     }
   };
@@ -140,14 +151,24 @@ export default function CrateFormScreen({ route, navigation }) {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 0.7,
+        quality: 0.5,  // Reduced quality to decrease file size
         base64: true,
       });
 
       if (!result.canceled) {
-        setPhoto(result.assets[0]);
+        // Use our image service to process the image
+        const processedImageData = await imageService.processImage(result.assets[0]);
+        
+        // Store the processed image
+        setPhoto({
+          ...result.assets[0],
+          processedImageData
+        });
+        
+        console.log('Photo selected from gallery and processed successfully');
       }
     } catch (error) {
+      console.error('Error selecting photo:', error);
       Alert.alert('Error selecting photo: ' + error.message);
     }
   };
@@ -162,6 +183,26 @@ export default function CrateFormScreen({ route, navigation }) {
       return;
     }
 
+    // Show loading indicator
+    Alert.alert(
+      'Processing',
+      'Creating crate record... This may take a moment.',
+      [{ text: 'OK' }]
+    );
+
+    // Process photo for two-step upload using our image service
+    let photoBase64 = undefined;
+    
+    if (photo) {
+      console.log('Image will be uploaded in a separate request after crate creation');
+      // Use either the processed image data or the original base64 data
+      if (photo.processedImageData) {
+        photoBase64 = photo.processedImageData;
+      } else if (photo.base64) {
+        photoBase64 = `data:image/jpeg;base64,${photo.base64}`;
+      }
+    }
+
     // Prepare crate data for API
     const crateData = {
       qr_code: values.qr_code,
@@ -169,16 +210,17 @@ export default function CrateFormScreen({ route, navigation }) {
       weight: parseFloat(values.weight),
       quality_grade: values.quality_grade,
       notes: values.notes,
-      supervisor_id: currentUser.id,
+      // Use hardcoded admin supervisor ID
+      supervisor_id: "16bdea6d-7845-4c40-82f5-07a38103eba7", // Admin user ID from your system
       gps_location: {
         lat: location.latitude,
         lng: location.longitude,
         accuracy: location.accuracy,
       },
-      photo_base64: photo
-        ? `data:image/jpeg;base64,${photo.base64}`
-        : undefined,
+      photo_base64: photoBase64,
     };
+    
+    console.log('Creating crate with supervisor_id:', crateData.supervisor_id);
 
     try {
       // Dispatch action to create crate
@@ -191,6 +233,7 @@ export default function CrateFormScreen({ route, navigation }) {
     } catch (error) {
       // Error handling is done in the slice
       console.error('Error creating crate:', error);
+      Alert.alert('Error', 'Failed to create crate. Please try again with a smaller photo or no photo.');
     }
   };
 

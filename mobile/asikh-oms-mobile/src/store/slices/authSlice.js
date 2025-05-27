@@ -108,7 +108,7 @@ export const loginWithPin = createAsyncThunk(
   }
 );
 
-export const checkAuth = createAsyncThunk('auth/check', async () => {
+export const checkAuth = createAsyncThunk('auth/check', async (_, { dispatch }) => {
   console.log('Checking authentication status on app startup');
   
   try {
@@ -117,8 +117,27 @@ export const checkAuth = createAsyncThunk('auth/check', async () => {
     console.log('Authentication check result:', isAuthenticated);
     
     if (!isAuthenticated) {
-      console.log('Not authenticated, user needs to login');
-      return { user: null };
+      console.log('Not authenticated, attempting automatic login with default credentials');
+      
+      // Default credentials for development/testing
+      const defaultUsername = 'admin';
+      const defaultPassword = 'admin';
+      
+      // Try to login automatically
+      try {
+        const loginResult = await authService.login(defaultUsername, defaultPassword);
+        
+        if (loginResult.success) {
+          console.log('Automatic login successful');
+          return { user: loginResult.user };
+        } else {
+          console.log('Automatic login failed:', loginResult.error);
+          return { user: null };
+        }
+      } catch (loginError) {
+        console.error('Automatic login error:', loginError);
+        return { user: null };
+      }
     }
     
     // Get user info

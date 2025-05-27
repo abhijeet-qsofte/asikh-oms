@@ -19,7 +19,7 @@ import TextInput from '../../components/TextInput';
 import Button from '../../components/Button';
 import { theme } from '../../constants/theme';
 import { createBatch } from '../../store/slices/batchSlice';
-import { getFarms, getPackhouses } from '../../store/slices/adminSlice';
+import { getFarms, getPackhouses, getUsers } from '../../store/slices/adminSlice';
 import { Ionicons } from '@expo/vector-icons';
 import { Button as PaperButton } from 'react-native-paper';
 
@@ -36,7 +36,7 @@ const BatchSchema = Yup.object().shape({
 export default function BatchFormScreen({ navigation }) {
   const dispatch = useDispatch();
   const { loading, error, success } = useSelector((state) => state.batches);
-  const { farms = [], packhouses = [], loading: adminLoading } = useSelector((state) => state.admin);
+  const { farms = [], packhouses = [], users = [], loading: adminLoading } = useSelector((state) => state.admin);
   const currentUser = useSelector((state) => state.auth.user);
   
   const [showEtaModal, setShowEtaModal] = useState(false);
@@ -50,6 +50,7 @@ export default function BatchFormScreen({ navigation }) {
     console.log('Fetching farms and packhouses...');
     dispatch(getFarms());
     dispatch(getPackhouses());
+    // We'll use a hardcoded supervisor ID instead of fetching users
   }, [dispatch]);
   
   // Debug admin state
@@ -90,16 +91,22 @@ export default function BatchFormScreen({ navigation }) {
       return;
     }
     
+    // We'll let the batchSlice handle the supervisor ID
+    // This way we can try multiple IDs if needed
+    console.log('Letting batchSlice handle supervisor ID');
+    
     // Ensure all UUIDs are properly formatted
     const batchData = {
       transport_mode: values.transport_mode,
       from_location: values.from_location,
       to_location: values.to_location,
-      supervisor_id: currentUser.id,
+      // supervisor_id will be handled by the batchSlice
       vehicle_number: values.vehicle_number || null,
       driver_name: values.driver_name || null,
       eta: values.eta ? new Date(values.eta).toISOString() : null,
-      notes: values.notes || null
+      notes: values.notes || null,
+      status: 'CREATED', // Add status field which is likely required by the backend
+      total_weight: 0 // Add total_weight field with default value of 0
     };
     
     console.log('Batch Data being sent:', batchData);

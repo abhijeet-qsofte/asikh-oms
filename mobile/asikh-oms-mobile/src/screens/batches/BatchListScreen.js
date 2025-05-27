@@ -512,7 +512,43 @@ export default function BatchListScreen({ navigation }) {
       {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
-            {error.detail || error.message || 'Failed to load batches'}
+            {(() => {
+              // Handle different error formats
+              if (typeof error === 'string') {
+                return error;
+              }
+              
+              if (typeof error === 'object') {
+                // Handle message property first (our standardized format)
+                if (error.message) {
+                  return error.message;
+                }
+                
+                // Handle Pydantic validation errors
+                if (error.detail) {
+                  if (Array.isArray(error.detail)) {
+                    // Format validation errors
+                    return error.detail.map(err => {
+                      if (typeof err === 'object') {
+                        const field = err.loc ? err.loc[err.loc.length - 1] : 'unknown';
+                        return `${field}: ${err.msg}`;
+                      }
+                      return String(err);
+                    }).join(', ');
+                  }
+                  return String(error.detail);
+                }
+                
+                // Fallback to stringify with length limit
+                try {
+                  return JSON.stringify(error).substring(0, 100);
+                } catch (e) {
+                  return 'Failed to load batches';
+                }
+              }
+              
+              return 'Failed to load batches';
+            })()}
           </Text>
         </View>
       )}

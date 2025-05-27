@@ -50,8 +50,52 @@ const batchService = {
       console.log('Batch creation response:', response.data);
       return response.data;
     } catch (error) {
+      // Format error message properly for display
       console.error('Batch creation error:', error.response?.data || error.message);
-      throw error;
+      
+      // Handle Pydantic validation errors
+      if (error.response?.status === 422 && error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        
+        // Log the full error details for debugging
+        console.log('Full validation error details:', JSON.stringify(error.response.data));
+        
+        // Format validation errors into a readable message
+        let errorMessage = 'Validation error: ';
+        
+        if (Array.isArray(detail)) {
+          // Extract field names and error messages
+          console.log('Validation error details:', detail);
+          
+          const fieldErrors = detail.map(err => {
+            // Log the full error object
+            console.log('Error object:', JSON.stringify(err));
+            
+            // Extract the field name from the location array
+            let field = 'unknown field';
+            if (err.loc && Array.isArray(err.loc)) {
+              console.log('Error location:', err.loc);
+              field = err.loc[err.loc.length - 1];
+            }
+            
+            return `${field} - ${err.msg}`;
+          });
+          errorMessage += fieldErrors.join(', ');
+        } else if (typeof detail === 'string') {
+          errorMessage += detail;
+        } else {
+          errorMessage += JSON.stringify(detail);
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      // Handle other types of errors
+      const errorMessage = typeof error.response?.data === 'object' ?
+        (error.response.data.detail || JSON.stringify(error.response.data)) :
+        (error.message || 'Failed to create batch');
+      
+      throw new Error(errorMessage);
     }
   },
 
@@ -109,8 +153,22 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   addCrateToBatch: async (batchId, qrCode) => {
-    const response = await apiClient.post(`/api/batches/${batchId}/crates`, { qr_code: qrCode });
-    return response.data;
+    try {
+      console.log(`Adding crate ${qrCode} to batch ${batchId}`);
+      const response = await apiClient.post(`/api/batches/${batchId}/crates`, { qr_code: qrCode });
+      console.log('Successfully added crate to batch:', response.data);
+      return response.data;
+    } catch (error) {
+      // Format error message properly
+      console.error('Error adding crate to batch:', error.response?.data || error.message);
+      
+      // Create a properly formatted error object with string message
+      const errorMessage = typeof error.response?.data === 'object' ?
+        (error.response.data.detail || JSON.stringify(error.response.data)) :
+        (error.message || 'Failed to add crate to batch');
+      
+      throw new Error(errorMessage);
+    }
   },
 
   /**

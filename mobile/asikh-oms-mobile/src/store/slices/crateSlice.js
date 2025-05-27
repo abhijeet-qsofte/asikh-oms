@@ -1,14 +1,45 @@
 // src/store/slices/crateSlice.js
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import apiClient from '../../api/client';
+import imageService from '../../services/imageService';
 
-// Async thunk for creating a new crate
+// Async thunk for creating a new crate with optimized image handling
 export const createCrate = createAsyncThunk(
   'crates/create',
   async (crateData, { rejectWithValue }) => {
     try {
-      const response = await apiClient.post('/api/crates', crateData);
-      return response.data;
+      // Extract image data if present, but keep supervisor_id
+      const { photo_base64, ...crateDataWithoutImage } = crateData;
+      
+      // Make sure supervisor_id is included
+      if (!crateDataWithoutImage.supervisor_id) {
+        console.error('supervisor_id is missing in crate data');
+        return rejectWithValue({ message: 'supervisor_id is required' });
+      }
+      
+      // First create the crate without the image (faster request)
+      console.log('Creating crate without image first...');
+      const response = await apiClient.post('/api/crates', crateDataWithoutImage);
+      const newCrate = response.data;
+      
+      // If we have an image, upload it in a separate request using the image service
+      if (photo_base64 && newCrate.id) {
+        try {
+          console.log('Uploading image separately for crate:', newCrate.id);
+          const uploadResult = await imageService.uploadCrateImage(newCrate.id, photo_base64);
+          
+          if (uploadResult.success) {
+            console.log('Image upload completed successfully');
+          } else {
+            console.error('Image upload failed:', uploadResult.error);
+          }
+        } catch (imageError) {
+          console.error('Failed to upload image, but crate was created:', imageError);
+          // We don't reject here because the crate was created successfully
+        }
+      }
+      
+      return newCrate;
     } catch (error) {
       return rejectWithValue(
         error.response?.data || { message: 'Failed to create crate' }

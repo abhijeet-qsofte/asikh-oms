@@ -29,9 +29,9 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="asikhoms"/>
         <data android:scheme="com.anonymous.asikhomsmobile"/>
         <data android:scheme="exp+asikh-oms-mobile"/>
-        <data android:scheme="asikhoms"/>
       </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.VIEW"/>

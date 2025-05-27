@@ -39,7 +39,7 @@ export const USE_PIN_AUTH = ENV[CURRENT_ENV].usePin;
 
 // Authentication mode - set to false to bypass authentication
 // This is now controlled by the BYPASS_AUTH environment variable on the server
-export const REQUIRE_AUTHENTICATION = false;
+export const REQUIRE_AUTHENTICATION = false; // Set to false to bypass all authentication
 
 // For debugging
 console.log('API Base URL:', API_BASE_URL);

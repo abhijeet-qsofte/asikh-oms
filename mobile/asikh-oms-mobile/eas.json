@@ -13,9 +13,33 @@
         "buildType": "apk"
       }
     },
+    "local-apk": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk",
+        "image": "latest",
+        "withoutCredentials": true
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://asikh-oms-test-cd0577c5c937.herokuapp.com"
+      }
+    },
     "production": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://asikh-oms-prod.herokuapp.com"
+      }
+    },
+    "production-apk": {
+      "distribution": "store",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://asikh-oms-prod.herokuapp.com"
       }
     }
   },
