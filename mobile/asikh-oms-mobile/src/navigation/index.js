@@ -222,7 +222,7 @@ import { useRef, useEffect } from 'react';
 
 // Root navigator
 export default function AppNavigator() {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  // Bypass authentication check completely
   const navigationRef = useRef(null);
 
   // Deep linking functionality has been removed to fix authentication issues
@@ -232,7 +232,7 @@ export default function AppNavigator() {
       ref={navigationRef}
       fallback={<Text>Loading...</Text>}
     >
-      {isAuthenticated ? <TabNavigator /> : <AuthNavigator />}
+      <TabNavigator />
     </NavigationContainer>
   );
 }

@@ -55,7 +55,10 @@ const batchService = {
   createBatch: async (batchData) => {
     console.log('Creating batch with data:', JSON.stringify(batchData, null, 2));
     try {
-      const response = await apiClient.post('/api/batches/', batchData);
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.post('/api/batches/', batchData);
       console.log('Batch creation response:', response.data);
       return response.data;
     } catch (error) {
@@ -116,8 +119,11 @@ const batchService = {
   getBatches: async (params = {}) => {
     console.log('batchService.getBatches called with params:', params);
     try {
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
       console.log('Making API request to /api/batches');
-      const response = await apiClient.get('/api/batches', { params });
+      const response = await authClient.get('/api/batches', { params });
       console.log('API response from getBatches:', response.data);
       return response.data;
     } catch (error) {
@@ -151,8 +157,16 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   getBatchByCode: async (batchCode) => {
-    const response = await apiClient.get(`/api/batches/code/${batchCode}`);
-    return response.data;
+    try {
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.get(`/api/batches/code/${batchCode}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting batch by code ${batchCode}:`, error.response?.data || error.message);
+      throw error;
+    }
   },
 
   /**
@@ -164,7 +178,11 @@ const batchService = {
   addCrateToBatch: async (batchId, qrCode) => {
     try {
       console.log(`Adding crate ${qrCode} to batch ${batchId}`);
-      const response = await apiClient.post(`/api/batches/${batchId}/crates`, { qr_code: qrCode });
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.post(`/api/batches/${batchId}/crates`, { qr_code: qrCode });
       console.log('Successfully added crate to batch:', response.data);
       return response.data;
     } catch (error) {
@@ -187,8 +205,16 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   getBatchCrates: async (batchId, params = {}) => {
-    const response = await apiClient.get(`/api/batches/${batchId}/crates`, { params });
-    return response.data;
+    try {
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.get(`/api/batches/${batchId}/crates`, { params });
+      return response.data;
+    } catch (error) {
+      console.error(`Error getting crates for batch ${batchId}:`, error.response?.data || error.message);
+      throw error;
+    }
   },
 
   /**
@@ -220,8 +246,19 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   updateBatch: async (batchId, batchData) => {
-    const response = await apiClient.put(`/api/batches/${batchId}`, batchData);
-    return response.data;
+    try {
+      console.log(`Updating batch ${batchId}`);
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.put(`/api/batches/${batchId}`, batchData);
+      console.log('Batch update response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating batch ${batchId}:`, error.response?.data || error.message);
+      throw error;
+    }
   },
 
   /**
@@ -230,8 +267,19 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   markBatchDeparted: async (batchId) => {
-    const response = await apiClient.patch(`/api/batches/${batchId}/depart`);
-    return response.data;
+    try {
+      console.log(`Marking batch ${batchId} as departed`);
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.patch(`/api/batches/${batchId}/depart`);
+      console.log('Batch depart response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error marking batch ${batchId} as departed:`, error.response?.data || error.message);
+      throw error;
+    }
   },
 
   /**
@@ -240,8 +288,19 @@ const batchService = {
    * @returns {Promise} - The API response
    */
   markBatchArrived: async (batchId) => {
-    const response = await apiClient.patch(`/api/batches/${batchId}/arrive`);
-    return response.data;
+    try {
+      console.log(`Marking batch ${batchId} as arrived`);
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      const response = await authClient.patch(`/api/batches/${batchId}/arrive`);
+      console.log('Batch arrive response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error marking batch ${batchId} as arrived:`, error.response?.data || error.message);
+      throw error;
+    }
   },
   
   /**
@@ -251,7 +310,14 @@ const batchService = {
    */
   closeBatch: async (batchId) => {
     try {
-      const response = await apiClient.post(`/api/batches/${batchId}/close`);
+      console.log(`Closing batch ${batchId}`);
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post(`/api/batches/${batchId}/close`);
+      console.log('Batch close response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error closing batch:', error.response?.data || error.message);

@@ -28,6 +28,10 @@ const ReconciliationDetailScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   
+  // Create refs for scrolling
+  const crateDetailsRef = React.useRef(null);
+  const scrollViewRef = React.useRef(null);
+  
   const { currentBatch: batch, loading, error } = useSelector((state) => state.batches);
   const [localBatch, setLocalBatch] = useState({});
   
@@ -39,6 +43,7 @@ const ReconciliationDetailScreen = () => {
   const [crateWeight, setCrateWeight] = useState('');
   const [cratePhoto, setCratePhoto] = useState(null);
   const [currentQrCode, setCurrentQrCode] = useState('');
+  const [showCrateDetails, setShowCrateDetails] = useState(false);
   
   // Get batch ID from route params
   const { batchId } = route.params || {};
@@ -230,12 +235,28 @@ const ReconciliationDetailScreen = () => {
   const handleBarCodeScanned = ({ data }) => {
     setScanning(false);
     setCurrentQrCode(data);
-    // Show weight entry and photo capture UI instead of immediately reconciling
-    Alert.alert(
-      'Crate Scanned',
-      `QR Code: ${data}\n\nPlease take a photo and enter the weight of this crate before reconciling.`,
-      [{ text: 'OK' }]
-    );
+    setShowCrateDetails(true);
+    
+    // Show a brief confirmation toast or notification
+    console.log(`Crate scanned: ${data}`);
+    
+    // Automatically scroll to the crate details section
+    setTimeout(() => {
+      if (crateDetailsRef && crateDetailsRef.current) {
+        // For React Native, we need to use scrollTo instead of scrollIntoView
+        // This will be handled by the ScrollView containing the ref
+        crateDetailsRef.current.measure((fx, fy, width, height, px, py) => {
+          // The measure callback gives us the position on screen
+          // We can use this to scroll to the right position
+          if (py) {
+            // Get the scrollview ref and scroll to this position
+            if (scrollViewRef && scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ y: py, animated: true });
+            }
+          }
+        });
+      }
+    }, 100);
   };
   
   // Handle taking a photo
@@ -284,8 +305,15 @@ const ReconciliationDetailScreen = () => {
       return;
     }
     
+    // Validate weight is a valid number
+    const weightNum = parseFloat(weight);
+    if (isNaN(weightNum) || weightNum <= 0) {
+      Alert.alert('Invalid Weight', 'Please enter a valid positive number for the weight.');
+      return;
+    }
+    
     try {
-      console.log(`Reconciling crate ${qrCode} with batch ${batchId}`);
+      console.log(`Reconciling crate ${qrCode} with batch ${batchId} with weight ${weightNum}kg`);
       
       // Skip photo upload for now since the endpoint doesn't exist
       // We'll just proceed with the reconciliation without the photo
@@ -293,7 +321,7 @@ const ReconciliationDetailScreen = () => {
       // Call API to reconcile crate with weight only
       const response = await apiClient.post(`/api/batches/${batchId}/reconcile`, {
         qr_code: qrCode,
-        weight: parseFloat(weight)
+        weight: weightNum // Send as a number, not a string
       });
       
       console.log('Reconciliation response:', response.data);
@@ -336,8 +364,8 @@ const ReconciliationDetailScreen = () => {
     // Check if any crates have been reconciled
     if (!localBatch.reconciled_count || localBatch.reconciled_count === 0) {
       Alert.alert(
-        'Cannot Close Batch',
-        'You must reconcile at least one crate before closing the batch.',
+        'Cannot Complete Batch',
+        'You must reconcile at least one crate before completing the batch.',
         [{ text: 'OK' }]
       );
       return;
@@ -345,18 +373,11 @@ const ReconciliationDetailScreen = () => {
     
     // Check if all crates are reconciled
     if (localBatch.reconciled_count < localBatch.total_crates) {
-      // Ask for confirmation if some but not all crates are reconciled
+      // Do not allow batch to be closed if not all crates are reconciled
       Alert.alert(
         'Incomplete Reconciliation',
-        `Only ${localBatch.reconciled_count} out of ${localBatch.total_crates} crates have been reconciled. Are you sure you want to close this batch with missing crates?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Close Anyway', 
-            style: 'destructive',
-            onPress: () => completeCloseBatch()
-          }
-        ]
+        `Only ${localBatch.reconciled_count} out of ${localBatch.total_crates} crates have been reconciled. You must reconcile all crates before completing the batch.`,
+        [{ text: 'OK' }]
       );
       return;
     }
@@ -364,42 +385,43 @@ const ReconciliationDetailScreen = () => {
     // All crates are reconciled, confirm final closure
     Alert.alert(
       'Complete Reconciliation',
-      'All crates have been reconciled. Would you like to complete the reconciliation process?',
+      'All crates have been reconciled. Would you like to complete the reconciliation process and mark the batch as delivered?',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Complete',
+          text: 'Complete & Deliver',
           onPress: () => completeCloseBatch(),
         },
       ]
     );
   };
   
-  // Function to handle the actual batch closure
+  // Function to handle the actual batch closure and delivery
   const completeCloseBatch = () => {
     // Update local state immediately for better UI responsiveness
     setLocalBatch(prevState => ({
       ...prevState,
-      status: 'closed',
+      status: 'DELIVERED',
       is_fully_reconciled: true
     }));
     
     dispatch(closeBatch(batchId))
       .unwrap()
       .then(() => {
-        Alert.alert('Success', 'Batch has been closed successfully');
+        Alert.alert('Success', 'Batch has been successfully reconciled and marked as DELIVERED');
         navigation.goBack();
       })
       .catch((error) => {
         // Revert local state if there's an error
         setLocalBatch(prevState => ({
           ...prevState,
-          status: 'delivered'
+          status: 'ARRIVED',
+          is_fully_reconciled: false
         }));
-        Alert.alert('Error', error.detail || 'Failed to close batch');
+        Alert.alert('Error', error.detail || 'Failed to complete batch reconciliation');
       });
   };
   
@@ -430,7 +452,11 @@ const ReconciliationDetailScreen = () => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}
     >
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        keyboardShouldPersistTaps="handled"
+      >
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.headerContainer}>
@@ -603,7 +629,11 @@ const ReconciliationDetailScreen = () => {
                 </Button>
               </View>
             ) : currentQrCode ? (
-              <View style={styles.reconciliationContainer}>
+              <View 
+                ref={crateDetailsRef} 
+                style={[styles.reconciliationContainer, styles.highlightedSection]}
+              >
+                <Title style={styles.detailsTitle}>Crate Reconciliation Details</Title>
                 <Text style={styles.qrCodeText}>QR Code: {currentQrCode}</Text>
                 
                 <View style={styles.photoContainer}>
@@ -640,6 +670,7 @@ const ReconciliationDetailScreen = () => {
                     onChangeText={handleWeightChange}
                     keyboardType="numeric"
                     placeholder="Enter weight in kg"
+                    autoFocus={true} // Automatically focus on weight input
                   />
                 </View>
                 
@@ -651,6 +682,7 @@ const ReconciliationDetailScreen = () => {
                       setCurrentQrCode('');
                       setCratePhoto(null);
                       setCrateWeight('');
+                      setShowCrateDetails(false);
                     }}
                     style={styles.cancelReconcileButton}
                   >
@@ -729,19 +761,25 @@ const ReconciliationDetailScreen = () => {
                   onPress={handleCloseBatch}
                   style={[styles.closeButton, { backgroundColor: '#4CAF50' }]}
                 >
-                  Complete Reconciliation
+                  Complete & Mark as DELIVERED
                 </Button>
               </View>
             ) : (
-              <Button
-                mode="contained"
-                icon="check-circle"
-                onPress={handleCloseBatch}
-                style={styles.closeButton}
-                disabled={!localBatch.reconciled_count || localBatch.reconciled_count === 0}
-              >
-                Close Batch
-              </Button>
+              <View>
+                <Button
+                  mode="contained"
+                  icon="check-circle"
+                  onPress={handleCloseBatch}
+                  style={styles.closeButton}
+                  disabled={!localBatch.reconciled_count || localBatch.reconciled_count === 0}
+                >
+                  {localBatch.reconciled_count === 0 ? 'No Crates Reconciled' : 
+                   `${localBatch.reconciled_count}/${localBatch.total_crates} Crates Reconciled`}
+                </Button>
+                <Text style={styles.reconciliationNote}>
+                  All crates must be reconciled before the batch can be marked as DELIVERED.
+                </Text>
+              </View>
             )}
           </Card.Content>
         </Card>
@@ -754,6 +792,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  highlightedSection: {
+    backgroundColor: '#e3f2fd',
+    borderWidth: 1,
+    borderColor: theme.colors.primary,
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  detailsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: theme.colors.primary,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 16,
@@ -1025,10 +1079,17 @@ const styles = StyleSheet.create({
   },
   completedText: {
     fontSize: 16,
-    color: '#2E7D32',
-    fontWeight: 'bold',
+    color: '#4CAF50',
     textAlign: 'center',
     marginBottom: 16,
+    fontWeight: 'bold',
+  },
+  reconciliationNote: {
+    fontSize: 14,
+    color: theme.colors.primary,
+    textAlign: 'center',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   loadingContainer: {
     flex: 1,

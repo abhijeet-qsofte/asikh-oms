@@ -24,13 +24,12 @@ export const createBatch = createAsyncThunk(
   'batches/create',
   async (batchData, { rejectWithValue }) => {
     try {
-      // Add a hardcoded admin supervisor ID if not provided
-      // This is a workaround for development/testing
+      // Add the correct admin supervisor ID if not provided
+      // This is the actual admin user ID from the database
       const batchDataWithSupervisor = {
         ...batchData,
-        // Use the hardcoded admin ID that we know works with the system
-        // This is the same approach we used for crate creation
-        supervisor_id: batchData.supervisor_id || '550e8400-e29b-41d4-a716-446655440000'
+        // Use the actual admin ID from the system
+        supervisor_id: batchData.supervisor_id || '16bdea6d-7845-4c40-82f5-07a38103eba7'
       };
       
       console.log('Creating batch with data (including supervisor):', JSON.stringify(batchDataWithSupervisor, null, 2));
@@ -42,19 +41,19 @@ export const createBatch = createAsyncThunk(
           typeof error.response.data.detail === 'string' && 
           error.response.data.detail.includes('Supervisor with ID')) {
         
-        console.log('Supervisor ID error detected, trying with alternative ID');
+        console.log('Supervisor ID error detected, trying with admin ID');
         
-        // Try again with a different supervisor ID
+        // Try again with the admin ID (in case the user provided an invalid ID)
         try {
           const alternativeBatchData = {
             ...batchData,
-            supervisor_id: '00000000-0000-0000-0000-000000000001' // Try a different ID format
+            supervisor_id: '16bdea6d-7845-4c40-82f5-07a38103eba7' // Admin user ID
           };
           
           return await batchService.createBatch(alternativeBatchData);
         } catch (retryError) {
           return rejectWithValue({ 
-            message: 'Failed to create batch with any supervisor ID. Please contact system administrator.'
+            message: 'Failed to create batch with admin supervisor ID. Please contact system administrator.'
           });
         }
       }

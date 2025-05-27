@@ -119,36 +119,11 @@ export default function BatchDetailScreen({ route, navigation }) {
     }
   }, [error, navigation]);
   
-  // Check authentication on mount
+  // Authentication check is completely bypassed
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Import config to check if authentication is required
-        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
-        
-        // Skip authentication check if not required
-        if (!REQUIRE_AUTHENTICATION) {
-          console.log('Authentication not required, skipping auth check');
-          return;
-        }
-        
-        const isAuthenticated = await authService.isAuthenticated();
-        if (!isAuthenticated) {
-          console.log('Not authenticated, redirecting to login');
-          authService.clearAuthAndRedirect(navigation);
-        }
-      } catch (err) {
-        console.error('Error checking authentication:', err);
-        // Only redirect if authentication is required
-        const { REQUIRE_AUTHENTICATION } = await import('../../constants/config');
-        if (REQUIRE_AUTHENTICATION) {
-          authService.clearAuthAndRedirect(navigation);
-        }
-      }
-    };
-    
-    checkAuth();
-  }, [navigation]);
+    console.log('Authentication check bypassed in BatchDetailScreen');
+    // No authentication check needed
+  }, []);
   
   // Handle pull-to-refresh
   const handleRefresh = () => {

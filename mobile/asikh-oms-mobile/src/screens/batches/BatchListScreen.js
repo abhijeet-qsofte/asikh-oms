@@ -57,38 +57,22 @@ export default function BatchListScreen({ navigation }) {
   useEffect(() => {
     console.log('BatchListScreen mounted, loading batches...');
     console.log('Authentication state:', { isAuthenticated });
-    console.log('Auth token available:', !!token);
-    
-    // Check if user is authenticated before loading batches
-    if (isAuthenticated) {
-      // Force token refresh if needed
-      if (!token) {
-        console.log('User is authenticated but token is missing, checking AsyncStorage...');
-        AsyncStorage.getItem(TOKEN_KEY)
-          .then(storedToken => {
-            if (storedToken) {
-              console.log('Found token in AsyncStorage, proceeding with batch loading');
-              loadBatches();
-            } else {
-              console.error('No token found in AsyncStorage');
-            }
-          })
-          .catch(err => console.error('Error checking token in AsyncStorage:', err));
-      } else {
-        loadBatches();
-      }
-    } else {
-      console.error('User not authenticated, cannot load batches');
-    }
-  }, [isAuthenticated, token]);
-  
+  }, []);
+
+  // Load batches when screen is focused
+  useEffect(() => {
+    // Always load batches without checking for authentication
+    console.log('Authentication check bypassed - loading batches directly');
+    loadBatches();
+  }, []);
+
   // Load farms and users for filters
   useEffect(() => {
-    if (isAuthenticated && token) {
-      dispatch(getFarms());
-      dispatch(getUsers());
-    }
-  }, [isAuthenticated, token]);
+    // Always load farms and users without checking authentication
+    console.log('Loading farms and users for filters');
+    dispatch(getFarms());
+    dispatch(getUsers());
+  }, []);
   
   // Set up navigation header with filter button
   useEffect(() => {

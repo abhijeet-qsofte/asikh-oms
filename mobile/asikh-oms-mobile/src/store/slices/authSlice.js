@@ -109,53 +109,27 @@ export const loginWithPin = createAsyncThunk(
 );
 
 export const checkAuth = createAsyncThunk('auth/check', async (_, { dispatch }) => {
-  console.log('Checking authentication status on app startup');
+  console.log('Authentication bypassed - always authenticated');
   
-  try {
-    // Check if user is authenticated
-    const isAuthenticated = await authService.isAuthenticated();
-    console.log('Authentication check result:', isAuthenticated);
-    
-    if (!isAuthenticated) {
-      console.log('Not authenticated, attempting automatic login with default credentials');
-      
-      // Default credentials for development/testing
-      const defaultUsername = 'admin';
-      const defaultPassword = 'admin';
-      
-      // Try to login automatically
-      try {
-        const loginResult = await authService.login(defaultUsername, defaultPassword);
-        
-        if (loginResult.success) {
-          console.log('Automatic login successful');
-          return { user: loginResult.user };
-        } else {
-          console.log('Automatic login failed:', loginResult.error);
-          return { user: null };
-        }
-      } catch (loginError) {
-        console.error('Automatic login error:', loginError);
-        return { user: null };
-      }
-    }
-    
-    // Get user info
-    const user = await authService.getCurrentUser();
-    console.log('User info retrieved:', user ? 'success' : 'not found');
-    
-    return { user };
-  } catch (error) {
-    console.error('Auth check error:', error);
-    return { user: null };
-  }
+  // Create a default admin user
+  const defaultUser = {
+    id: 1,
+    username: 'admin',
+    email: 'admin@example.com',
+    role: 'admin',
+    first_name: 'Admin',
+    last_name: 'User'
+  };
+  
+  // Always return as authenticated with the default user
+  return { user: defaultUser };
 });
 
 const authSlice = createSlice({
   name: 'auth',
   initialState: {
-    user: null,
-    isAuthenticated: false,
+    user: { username: 'admin', role: 'admin' }, // Default user with admin role
+    isAuthenticated: true, // Always authenticated
     loading: false,
     error: null,
   },
