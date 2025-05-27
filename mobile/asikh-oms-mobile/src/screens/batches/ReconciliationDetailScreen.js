@@ -734,15 +734,17 @@ const ReconciliationDetailScreen = () => {
                 </View>
                 
                 <View style={styles.weightContainer}>
-                  <Text style={styles.sectionTitle}>Crate Weight (kg)</Text>
+                  <Text style={[styles.sectionTitle, { fontSize: 18, color: '#2196F3' }]}>Crate Weight (kg) *</Text>
+                  <Text style={styles.weightInstructions}>Enter the weight of the crate as measured at the packhouse:</Text>
                   <TextInput
-                    style={styles.weightInput}
+                    style={[styles.weightInput, { borderWidth: 2, borderColor: '#2196F3', height: 50, fontSize: 18 }]}
                     value={crateWeight}
                     onChangeText={handleWeightChange}
                     keyboardType="numeric"
                     placeholder="Enter weight in kg"
                     autoFocus={true} // Automatically focus on weight input
                   />
+                  <Text style={styles.weightNote}>Note: This weight will be compared to the original weight recorded at the farm to calculate weight loss.</Text>
                 </View>
                 
                 <View style={styles.buttonContainer}>
@@ -809,6 +811,18 @@ const ReconciliationDetailScreen = () => {
                     if (manualQrCode.trim()) {
                       setCurrentQrCode(manualQrCode.trim());
                       setManualQrCode('');
+                      setShowManualEntry(false); // Hide manual entry after submitting
+                      
+                      // Scroll to the crate details section after a short delay
+                      setTimeout(() => {
+                        if (crateDetailsRef && crateDetailsRef.current) {
+                          crateDetailsRef.current.measureInWindow((x, y, width, height) => {
+                            if (scrollViewRef && scrollViewRef.current) {
+                              scrollViewRef.current.scrollTo({ y: y, animated: true });
+                            }
+                          });
+                        }
+                      }, 100);
                     } else {
                       Alert.alert('Error', 'Please enter a valid QR code');
                     }
@@ -1142,14 +1156,31 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   weightContainer: {
-    marginBottom: 16,
+    marginVertical: 16,
+    padding: 12,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2196F3',
   },
   weightInput: {
-    backgroundColor: '#fff',
+    height: 40,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 4,
-    padding: 8,
+    paddingHorizontal: 8,
+    marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  weightInstructions: {
+    fontSize: 14,
+    marginBottom: 8,
+    color: '#333',
+  },
+  weightNote: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    color: '#666',
     marginTop: 8,
   },
   buttonContainer: {
