@@ -69,13 +69,34 @@ async def lifespan(app: FastAPI):
         # Run migration to add weight differential columns
         try:
             logger.info("Running migration to add weight differential columns to crate_reconciliations table")
-            from sqlalchemy import text
-            with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN IF NOT EXISTS original_weight FLOAT"))
-                conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN IF NOT EXISTS weight_differential FLOAT"))
-            logger.info("Weight differential columns migration completed successfully")
+            from sqlalchemy import text, inspect
+            
+            # First check if the table exists
+            inspector = inspect(engine)
+            if 'crate_reconciliations' not in inspector.get_table_names():
+                logger.warning("crate_reconciliations table does not exist yet, will be created with the columns")
+            else:
+                # Check if columns already exist
+                columns = [c['name'] for c in inspector.get_columns('crate_reconciliations')]
+                logger.info(f"Existing columns in crate_reconciliations: {columns}")
+                
+                # Add columns if they don't exist
+                with engine.begin() as conn:
+                    if 'original_weight' not in columns:
+                        logger.info("Adding original_weight column to crate_reconciliations table")
+                        conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN original_weight FLOAT"))
+                    
+                    if 'weight_differential' not in columns:
+                        logger.info("Adding weight_differential column to crate_reconciliations table")
+                        conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN weight_differential FLOAT"))
+                
+                logger.info("Weight differential columns migration completed successfully")
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
             logger.error(f"Error running weight differential columns migration: {str(e)}")
+            logger.error(f"Migration traceback: {error_traceback}")
+            logger.warning("The application will continue to start, but reconciliation may not work correctly")
     
     yield
     

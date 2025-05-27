@@ -1148,7 +1148,18 @@ async def reconcile_crate(
             "reconciliation_stats": reconciliation_stats
         }
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         logger.error(f"Error reconciling crate: {str(e)}")
+        logger.error(f"Traceback: {error_traceback}")
+        
+        # Log specific details about the request
+        logger.error(f"Batch ID: {batch_id}, QR Code: {qr_code}, Weight: {weight}")
+        
+        # Check if this is a database error
+        if "column" in str(e).lower() and "does not exist" in str(e).lower():
+            logger.error("This appears to be a missing column error. The migration may not have run successfully.")
+            
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error reconciling crate: {str(e)}"
