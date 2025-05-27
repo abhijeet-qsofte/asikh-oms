@@ -1039,10 +1039,10 @@ async def reconcile_crate(
             )
         
         # Check if batch is in valid state for reconciliation
-        if batch.status not in ["delivered"]:
+        if batch.status not in ["arrived", "delivered"]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot reconcile crates for batch with status '{batch.status}'. Batch must be delivered."
+                detail=f"Cannot reconcile crates for batch with status '{batch.status}'. Batch must be arrived or delivered."
             )
         
         # Find the crate
