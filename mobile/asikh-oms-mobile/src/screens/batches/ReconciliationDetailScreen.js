@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 // Removed BarCodeScanner import to avoid native module errors
 import Button from '../../components/Button';
-import { getBatchById, getBatchStats, closeBatch, getReconciliationStatus, getBatchWeightDetails } from '../../store/slices/batchSlice';
+import { getBatchById, getBatchStats, markBatchDelivered, closeBatch, getReconciliationStatus, getBatchWeightDetails } from '../../store/slices/batchSlice';
 import { theme } from '../../constants/theme';
 import apiClient from '../../api/client';
 
@@ -359,13 +359,13 @@ const ReconciliationDetailScreen = () => {
     }
   };
   
-  // Handle closing the batch
-  const handleCloseBatch = () => {
+  // Handle marking batch as delivered after reconciliation
+  const handleMarkAsDelivered = () => {
     // Check if any crates have been reconciled
     if (!localBatch.reconciled_count || localBatch.reconciled_count === 0) {
       Alert.alert(
-        'Cannot Complete Batch',
-        'You must reconcile at least one crate before completing the batch.',
+        'Cannot Mark as Delivered',
+        'You must reconcile at least one crate before marking the batch as delivered.',
         [{ text: 'OK' }]
       );
       return;
@@ -373,34 +373,53 @@ const ReconciliationDetailScreen = () => {
     
     // Check if all crates are reconciled
     if (localBatch.reconciled_count < localBatch.total_crates) {
-      // Do not allow batch to be closed if not all crates are reconciled
+      // Do not allow batch to be marked as delivered if not all crates are reconciled
       Alert.alert(
         'Incomplete Reconciliation',
-        `Only ${localBatch.reconciled_count} out of ${localBatch.total_crates} crates have been reconciled. You must reconcile all crates before completing the batch.`,
+        `Only ${localBatch.reconciled_count} out of ${localBatch.total_crates} crates have been reconciled. You must reconcile all crates before marking the batch as delivered.`,
         [{ text: 'OK' }]
       );
       return;
     }
     
-    // All crates are reconciled, confirm final closure
+    // All crates are reconciled, confirm marking as delivered
     Alert.alert(
       'Complete Reconciliation',
-      'All crates have been reconciled. Would you like to complete the reconciliation process and mark the batch as delivered?',
+      'All crates have been reconciled. Would you like to mark the batch as DELIVERED?',
       [
         {
           text: 'Cancel',
-          style: 'cancel',
+          style: 'cancel'
         },
         {
-          text: 'Complete & Deliver',
-          onPress: () => completeCloseBatch(),
-        },
+          text: 'Mark as DELIVERED',
+          onPress: markAsDelivered
+        }
       ]
     );
   };
   
-  // Function to handle the actual batch closure and delivery
-  const completeCloseBatch = () => {
+  // Handle closing the batch after it has been delivered
+  const handleCloseBatch = () => {
+    // Confirm batch closure
+    Alert.alert(
+      'Close Batch',
+      'Are you sure you want to close this batch? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Close Batch',
+          onPress: completeCloseBatch
+        }
+      ]
+    );
+  };
+  
+  // Function to mark batch as delivered after reconciliation is complete
+  const markAsDelivered = () => {
     // Update local state immediately for better UI responsiveness
     setLocalBatch(prevState => ({
       ...prevState,
@@ -408,11 +427,12 @@ const ReconciliationDetailScreen = () => {
       is_fully_reconciled: true
     }));
     
-    dispatch(closeBatch(batchId))
+    dispatch(markBatchDelivered(batchId))
       .unwrap()
       .then(() => {
         Alert.alert('Success', 'Batch has been successfully reconciled and marked as DELIVERED');
-        navigation.goBack();
+        // Refresh batch data
+        dispatch(getBatchById(batchId));
       })
       .catch((error) => {
         // Revert local state if there's an error
@@ -421,7 +441,31 @@ const ReconciliationDetailScreen = () => {
           status: 'ARRIVED',
           is_fully_reconciled: false
         }));
-        Alert.alert('Error', error.detail || 'Failed to complete batch reconciliation');
+        Alert.alert('Error', error.message || 'Failed to mark batch as delivered');
+      });
+  };
+  
+  // Function to close the batch after it has been delivered
+  const completeCloseBatch = () => {
+    // Update local state immediately for better UI responsiveness
+    setLocalBatch(prevState => ({
+      ...prevState,
+      status: 'CLOSED'
+    }));
+    
+    dispatch(closeBatch(batchId))
+      .unwrap()
+      .then(() => {
+        Alert.alert('Success', 'Batch has been successfully closed');
+        navigation.goBack();
+      })
+      .catch((error) => {
+        // Revert local state if there's an error
+        setLocalBatch(prevState => ({
+          ...prevState,
+          status: 'DELIVERED'
+        }));
+        Alert.alert('Error', error.message || 'Failed to close batch');
       });
   };
   
@@ -750,34 +794,62 @@ const ReconciliationDetailScreen = () => {
               </View>
             )}
             
-            {localBatch.is_fully_reconciled ? (
+            {localBatch.status === 'ARRIVED' && (
+              <View>
+                {localBatch.is_fully_reconciled ? (
+                  <View style={styles.completedContainer}>
+                    <Text style={styles.completedText}>
+                      All crates have been reconciled!
+                    </Text>
+                    <Button
+                      mode="contained"
+                      icon="check-circle"
+                      onPress={handleMarkAsDelivered}
+                      style={[styles.closeButton, { backgroundColor: '#4CAF50' }]}
+                    >
+                      Mark as DELIVERED
+                    </Button>
+                  </View>
+                ) : (
+                  <View>
+                    <Button
+                      mode="contained"
+                      icon="check-circle"
+                      onPress={handleMarkAsDelivered}
+                      style={styles.closeButton}
+                      disabled={!localBatch.reconciled_count || localBatch.reconciled_count === 0}
+                    >
+                      {localBatch.reconciled_count === 0 ? 'No Crates Reconciled' : 
+                       `${localBatch.reconciled_count}/${localBatch.total_crates} Crates Reconciled`}
+                    </Button>
+                    <Text style={styles.reconciliationNote}>
+                      All crates must be reconciled before the batch can be marked as DELIVERED.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+            
+            {localBatch.status === 'DELIVERED' && (
               <View style={styles.completedContainer}>
                 <Text style={styles.completedText}>
-                  All crates have been reconciled!
+                  Batch has been fully reconciled and marked as DELIVERED!
                 </Text>
                 <Button
                   mode="contained"
-                  icon="check-circle"
+                  icon="archive"
                   onPress={handleCloseBatch}
-                  style={[styles.closeButton, { backgroundColor: '#4CAF50' }]}
+                  style={[styles.closeButton, { backgroundColor: '#2196F3' }]}
                 >
-                  Complete & Mark as DELIVERED
+                  Close Batch
                 </Button>
               </View>
-            ) : (
-              <View>
-                <Button
-                  mode="contained"
-                  icon="check-circle"
-                  onPress={handleCloseBatch}
-                  style={styles.closeButton}
-                  disabled={!localBatch.reconciled_count || localBatch.reconciled_count === 0}
-                >
-                  {localBatch.reconciled_count === 0 ? 'No Crates Reconciled' : 
-                   `${localBatch.reconciled_count}/${localBatch.total_crates} Crates Reconciled`}
-                </Button>
-                <Text style={styles.reconciliationNote}>
-                  All crates must be reconciled before the batch can be marked as DELIVERED.
+            )}
+            
+            {localBatch.status === 'CLOSED' && (
+              <View style={styles.completedContainer}>
+                <Text style={styles.completedText}>
+                  Batch has been closed and archived.
                 </Text>
               </View>
             )}

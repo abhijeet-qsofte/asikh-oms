@@ -682,7 +682,7 @@ async def mark_batch_arrived(
     current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
 ):
     """
-    Mark a batch as arrived (delivered)
+    Mark a batch as arrived at the packhouse (but not yet delivered/reconciled)
     """
     batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if not batch:
@@ -697,13 +697,16 @@ async def mark_batch_arrived(
             detail=f"Cannot mark arrival for batch with status '{batch.status}'"
         )
     
-    # Update batch
-    batch.status = "delivered"
+    # Update batch - use 'arrived' status instead of 'delivered'
+    batch.status = "arrived"
     batch.arrival_time = datetime.utcnow()
     
     # If departure was not recorded, record it now
     if batch.departure_time is None:
         batch.departure_time = batch.arrival_time
+        
+    logger.info(f"Batch {batch.batch_code} marked as ARRIVED by user {current_user.username}. Ready for reconciliation.")
+
     
     db.commit()
     db.refresh(batch)
@@ -1313,6 +1316,69 @@ async def get_batch_weight_details(
         )
 
 
+@router.post("/{batch_id}/deliver", response_model=dict)
+async def mark_batch_delivered(
+    batch_id: uuid.UUID,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
+):
+    """
+    Mark a batch as delivered after reconciliation is complete
+    """
+    try:
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
+        
+        # Check if batch is in valid state for marking as delivered
+        if batch.status != "arrived":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot mark batch as delivered with status '{batch.status}'. Batch must be in 'arrived' status."
+            )
+        
+        # Get reconciliation stats
+        stats = await get_reconciliation_stats(batch_id, db, current_user)
+        
+        # Check if all crates are reconciled
+        if not stats.get("is_reconciliation_complete", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot mark batch as delivered. All crates must be reconciled first."
+            )
+        
+        # Mark the batch as delivered
+        batch.status = "delivered"
+        
+        # Update batch with delivery information
+        now = datetime.utcnow()
+        batch.updated_at = now
+        
+        db.commit()
+        
+        logger.info(f"Batch {batch.batch_code} marked as DELIVERED by user {current_user.username} after complete reconciliation.")
+        
+        return {
+            "status": "success",
+            "message": f"Batch {batch.batch_code} has been marked as delivered",
+            "batch_id": str(batch_id),
+            "batch_code": batch.batch_code
+        }
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error marking batch as delivered: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error marking batch as delivered: {str(e)}"
+        )
+
+
 @router.post("/{batch_id}/close", response_model=dict)
 async def close_batch(
     batch_id: uuid.UUID,
@@ -1320,7 +1386,7 @@ async def close_batch(
     current_user: User = Depends(check_role(["admin", "supervisor", "manager", "packhouse"]))
 ):
     """
-    Close a batch after reconciliation is complete
+    Close a batch after it has been delivered and reconciled
     """
     try:
         # Verify batch exists
@@ -1338,16 +1404,6 @@ async def close_batch(
                 detail=f"Cannot close batch with status '{batch.status}'. Batch must be delivered."
             )
         
-        # Get reconciliation stats
-        stats = await get_reconciliation_stats(batch_id, db, current_user)
-        
-        # Check if all crates are reconciled
-        if not stats.get("is_reconciliation_complete", False):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot close batch. All crates must be reconciled first."
-            )
-        
         # Close the batch
         batch.status = "closed"
         
@@ -1355,17 +1411,9 @@ async def close_batch(
         now = datetime.utcnow()
         batch.updated_at = now
         
-        # Instead of using the partitioned ReconciliationLog table, just update the batch status
-        # This avoids the partition error while still marking the batch as closed
-        batch.status = "closed"
-        batch.updated_at = now
-        
-        # Log the closure action but don't store it in the database
-        logger.info(f"Batch {batch.batch_code} closed by user {current_user.username} at {now}")
-        
         db.commit()
         
-        logger.info(f"Batch {batch.batch_code} closed by user {current_user.username}")
+        logger.info(f"Batch {batch.batch_code} closed by user {current_user.username} at {now}")
         
         return {
             "status": "success",

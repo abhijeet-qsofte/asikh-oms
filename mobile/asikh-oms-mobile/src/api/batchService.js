@@ -304,7 +304,29 @@ const batchService = {
   },
   
   /**
-   * Close a batch after reconciliation is complete
+   * Mark a batch as delivered after reconciliation is complete
+   * @param {string} batchId - The batch ID
+   * @returns {Promise} - The API response
+   */
+  markBatchDelivered: async (batchId) => {
+    try {
+      console.log(`Marking batch ${batchId} as delivered`);
+      
+      // Ensure we're authenticated before making the API call
+      const authClient = await ensureAuthenticated();
+      
+      // Use the authenticated client for this specific request
+      const response = await authClient.post(`/api/batches/${batchId}/deliver`);
+      console.log('Batch deliver response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error marking batch ${batchId} as delivered:`, error.response?.data || error.message);
+      throw error;
+    }
+  },
+
+  /**
+   * Close a batch after it has been delivered and reconciled
    * @param {string} batchId - The batch ID
    * @returns {Promise} - The API response
    */

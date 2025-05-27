@@ -259,16 +259,30 @@ export const markBatchArrived = createAsyncThunk(
   }
 );
 
-// Close batch after reconciliation
+// Mark a batch as delivered after reconciliation
+export const markBatchDelivered = createAsyncThunk(
+  'batches/deliver',
+  async (batchId, { rejectWithValue }) => {
+    try {
+      return await batchService.markBatchDelivered(batchId);
+    } catch (error) {
+      return rejectWithValue({
+        message: error.response?.data?.detail || error.message || 'Failed to mark batch as delivered'
+      });
+    }
+  }
+);
+
+// Close a batch
 export const closeBatch = createAsyncThunk(
   'batches/close',
   async (batchId, { rejectWithValue }) => {
     try {
       return await batchService.closeBatch(batchId);
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data || { message: 'Failed to close batch' }
-      );
+      return rejectWithValue({
+        message: error.response?.data?.detail || error.message || 'Failed to close batch'
+      });
     }
   }
 );
