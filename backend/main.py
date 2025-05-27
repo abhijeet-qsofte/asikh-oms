@@ -65,6 +65,17 @@ async def lifespan(app: FastAPI):
         logger.info("Database connection successful")
         # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
+        
+        # Run migration to add weight differential columns
+        try:
+            logger.info("Running migration to add weight differential columns to crate_reconciliations table")
+            from sqlalchemy import text
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN IF NOT EXISTS original_weight FLOAT"))
+                conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN IF NOT EXISTS weight_differential FLOAT"))
+            logger.info("Weight differential columns migration completed successfully")
+        except Exception as e:
+            logger.error(f"Error running weight differential columns migration: {str(e)}")
     
     yield
     
