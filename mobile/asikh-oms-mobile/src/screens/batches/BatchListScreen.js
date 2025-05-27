@@ -113,17 +113,17 @@ export default function BatchListScreen({ navigation }) {
       const result = await dispatch(getBatches(params));
       console.log('getBatches result:', result);
       
-      // For each delivered or closed batch, fetch weight details
+      // For each arrived, delivered or closed batch, fetch weight details
       if (result && result.payload && result.payload.batches) {
-        const deliveredOrClosedBatches = result.payload.batches.filter(
-          batch => batch.status === 'delivered' || batch.status === 'closed'
+        const batchesToProcess = result.payload.batches.filter(
+          batch => batch.status === 'arrived' || batch.status === 'delivered' || batch.status === 'closed'
         );
         
-        console.log(`Found ${deliveredOrClosedBatches.length} delivered/closed batches`);
+        console.log(`Found ${batchesToProcess.length} arrived/delivered/closed batches`);
         
         // Use Promise.all to fetch all weight details in parallel
-        if (deliveredOrClosedBatches.length > 0) {
-          const weightDetailsPromises = deliveredOrClosedBatches.map(batch => {
+        if (batchesToProcess.length > 0) {
+          const weightDetailsPromises = batchesToProcess.map(batch => {
             console.log(`Fetching weight details for batch ${batch.id}`);
             return dispatch(getBatchWeightDetails(batch.id));
           });
@@ -156,17 +156,17 @@ export default function BatchListScreen({ navigation }) {
     try {
       const result = await dispatch(getBatches(params));
       
-      // For each delivered or closed batch, fetch weight details
+      // For each arrived, delivered or closed batch, fetch weight details
       if (result && result.payload && result.payload.batches) {
-        const deliveredOrClosedBatches = result.payload.batches.filter(
-          batch => batch.status === 'delivered' || batch.status === 'closed'
+        const batchesToProcess = result.payload.batches.filter(
+          batch => batch.status === 'arrived' || batch.status === 'delivered' || batch.status === 'closed'
         );
         
-        console.log(`Found ${deliveredOrClosedBatches.length} delivered/closed batches on refresh`);
+        console.log(`Found ${batchesToProcess.length} arrived/delivered/closed batches on refresh`);
         
         // Use Promise.all to fetch all weight details in parallel
-        if (deliveredOrClosedBatches.length > 0) {
-          const weightDetailsPromises = deliveredOrClosedBatches.map(batch => {
+        if (batchesToProcess.length > 0) {
+          const weightDetailsPromises = batchesToProcess.map(batch => {
             console.log(`Fetching weight details for batch ${batch.id} on refresh`);
             return dispatch(getBatchWeightDetails(batch.id));
           });
@@ -336,17 +336,18 @@ export default function BatchListScreen({ navigation }) {
         setArrivedDateFilter(selectedDate);
         break;
     }
-    
     setDateDialogVisible(false);
   };
   
-  // Get status badge color
+  // Get color based on batch status
   const getStatusColor = (status) => {
     switch (status) {
       case 'open':
-        return '#2196F3'; // Blue
-      case 'in_transit':
         return '#FF9800'; // Orange
+      case 'in_transit':
+        return '#2196F3'; // Blue
+      case 'arrived':
+        return '#03A9F4'; // Light Blue
       case 'delivered':
         return '#4CAF50'; // Green
       case 'closed':
@@ -408,12 +409,14 @@ export default function BatchListScreen({ navigation }) {
             <Text style={styles.cardText}>Crates: {item.total_crates || 0}</Text>
           </View>
           
-          {(item.status === 'delivered' || item.status === 'closed') && (
+          {(item.status === 'arrived' || item.status === 'delivered' || item.status === 'closed') && (
             <View style={styles.cardRow}>
               <Ionicons 
-                name={item.status === 'closed' ? "checkmark-done-circle-outline" : "checkmark-circle-outline"} 
+                name={item.status === 'closed' ? "checkmark-done-circle-outline" : 
+                     (item.status === 'delivered' ? "checkmark-circle-outline" : "time-outline")} 
                 size={18} 
-                color={item.status === 'closed' ? theme.colors.primary : theme.colors.success} 
+                color={item.status === 'closed' ? theme.colors.primary : 
+                      (item.status === 'delivered' ? theme.colors.success : '#2196F3')} 
               />
               <Text style={styles.cardText}>
                 Reconciliation: {item.reconciliation_status || '0/0 (0%)'}
@@ -426,7 +429,7 @@ export default function BatchListScreen({ navigation }) {
             <Text style={styles.cardText}>Weight: {item.total_weight || 0} kg</Text>
           </View>
           
-          {(item.status === 'delivered' || item.status === 'closed') && (
+          {(item.status === 'arrived' || item.status === 'delivered' || item.status === 'closed') && (
             <View style={styles.cardRow}>
               <Ionicons 
                 name={parseFloat(weightDifferential || 0) >= 0 ? "trending-up-outline" : "trending-down-outline"} 
