@@ -1,6 +1,6 @@
 Project Root Directy : asikh-oms
 Project Name : asikh-oms
-Version: 1.0.3
+Version: 1.0.5
 
 1. High-Level Workflow Overview
    1.1 At Farm (Harvesting & Crating)
