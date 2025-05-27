@@ -85,10 +85,33 @@ async def lifespan(app: FastAPI):
                     if 'original_weight' not in columns:
                         logger.info("Adding original_weight column to crate_reconciliations table")
                         conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN original_weight FLOAT"))
+                        logger.info("Successfully added original_weight column")
+                    else:
+                        logger.info("original_weight column already exists")
                     
                     if 'weight_differential' not in columns:
                         logger.info("Adding weight_differential column to crate_reconciliations table")
                         conn.execute(text("ALTER TABLE crate_reconciliations ADD COLUMN weight_differential FLOAT"))
+                        logger.info("Successfully added weight_differential column")
+                    else:
+                        logger.info("weight_differential column already exists")
+                        
+                # Verify columns were added successfully
+                updated_columns = [c['name'] for c in inspector.get_columns('crate_reconciliations')]
+                logger.info(f"Updated columns in crate_reconciliations: {updated_columns}")
+                
+                if 'original_weight' not in updated_columns or 'weight_differential' not in updated_columns:
+                    logger.warning("Migration may not have completed successfully. Some columns are still missing.")
+                else:
+                    logger.info("Migration completed successfully. All required columns exist.")
+                    
+                # Run a simple query to verify the columns work
+                try:
+                    result = conn.execute(text("SELECT COUNT(*) FROM crate_reconciliations")).scalar()
+                    logger.info(f"Verified table access: crate_reconciliations has {result} rows")
+                except Exception as e:
+                    logger.error(f"Error accessing crate_reconciliations table: {str(e)}")
+                    raise
                 
                 logger.info("Weight differential columns migration completed successfully")
         except Exception as e:
