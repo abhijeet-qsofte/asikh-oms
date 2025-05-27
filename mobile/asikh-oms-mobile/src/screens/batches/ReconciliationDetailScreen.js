@@ -315,13 +315,40 @@ const ReconciliationDetailScreen = () => {
     try {
       console.log(`Reconciling crate ${qrCode} with batch ${batchId} with weight ${weightNum}kg`);
       
-      // Skip photo upload for now since the endpoint doesn't exist
-      // We'll just proceed with the reconciliation without the photo
+      // First, upload the photo to get a URL
+      let photoUrl = null;
+      if (photoUri) {
+        try {
+          // Create a form data object for the photo upload
+          const formData = new FormData();
+          formData.append('file', {
+            uri: photoUri,
+            type: 'image/jpeg',
+            name: `crate_${qrCode}_${Date.now()}.jpg`
+          });
+          
+          // Upload the photo
+          const uploadResponse = await apiClient.post('/api/uploads/crate-photos', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          });
+          
+          // Get the photo URL from the response
+          photoUrl = uploadResponse.data.url;
+          console.log('Photo uploaded successfully:', photoUrl);
+        } catch (uploadError) {
+          console.error('Error uploading photo:', uploadError);
+          // Continue with reconciliation even if photo upload fails
+          Alert.alert('Photo Upload Failed', 'Continuing with reconciliation without photo.');
+        }
+      }
       
-      // Call API to reconcile crate with weight only
+      // Call API to reconcile crate with weight and photo URL (if available)
       const response = await apiClient.post(`/api/batches/${batchId}/reconcile`, {
         qr_code: qrCode,
-        weight: weightNum // Send as a number, not a string
+        weight: weightNum, // Send as a number, not a string
+        photo_url: photoUrl
       });
       
       console.log('Reconciliation response:', response.data);
