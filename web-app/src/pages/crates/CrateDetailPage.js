@@ -34,7 +34,7 @@ const CrateDetailPage = () => {
   
   useEffect(() => {
     if (id) {
-      dispatch(getCrateById(parseInt(id)));
+      dispatch(getCrateById(id));
     }
   }, [dispatch, id]);
   
@@ -68,7 +68,7 @@ const CrateDetailPage = () => {
     return (
       <Container maxWidth="md">
         <Alert severity="error" sx={{ mt: 4 }}>
-          {error}
+          {typeof error === 'string' ? error : error?.msg || JSON.stringify(error)}
         </Alert>
         <Button
           variant="outlined"
