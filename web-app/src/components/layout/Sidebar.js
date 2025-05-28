@@ -26,7 +26,7 @@ import {
 
 const drawerWidth = 240;
 
-const Sidebar = ({ open }) => {
+const Sidebar = ({ open, variant = 'persistent', onClose }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
@@ -105,20 +105,27 @@ const Sidebar = ({ open }) => {
   
   const handleNavigation = (path) => {
     navigate(path);
+    if (variant === 'temporary' && onClose) {
+      onClose();
+    }
   };
+
 
   return (
     <Drawer
-      variant="persistent"
+      variant={variant}
       anchor="left"
       open={open}
+      onClose={onClose}
+      ModalProps={variant === 'temporary' ? { keepMounted: true } : {}}
       sx={{
         width: drawerWidth,
         flexShrink: 0,
         '& .MuiDrawer-paper': {
           width: drawerWidth,
           boxSizing: 'border-box',
-          mt: 8,
+          mt: variant === 'persistent' ? 8 : 0,
+          height: variant === 'persistent' ? 'auto' : '100vh',
           backgroundColor: '#ffffff',
           borderRight: '1px solid rgba(0, 0, 0, 0.12)',
         },
