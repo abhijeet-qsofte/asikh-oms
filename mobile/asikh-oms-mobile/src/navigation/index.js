@@ -159,6 +159,7 @@ const BatchNavigator = () => (
 // Import reconciliation screens
 import ReconciliationListScreen from '../screens/reconciliation/ReconciliationListScreen';
 import ReconciliationScanScreen from '../screens/reconciliation/ReconciliationScanScreen';
+import CrateReconciliationScreen from '../screens/reconciliation/CrateReconciliationScreen';
 //import ReconciliationDetailScreen from '../screens/reconciliation/ReconciliationDetailScreen';
 
 // Reconciliation Flow
@@ -178,6 +179,11 @@ const ReconciliationNavigator = () => (
       name="ReconciliationDetail"
       component={ReconciliationDetailScreen}
       options={{ title: 'Reconciliation Summary' }}
+    />
+    <MainStack.Screen
+      name="CrateReconciliation"
+      component={CrateReconciliationScreen}
+      options={{ title: 'Reconcile Crate' }}
     />
   </MainStack.Navigator>
 );

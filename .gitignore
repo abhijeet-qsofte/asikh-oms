@@ -22,7 +22,25 @@ htmlcov/
 # IDEs / editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Node.js / React
+node_modules/
+.pnp/
+.pnp.js
+
+# React build
+/web-app/build/
+
+# React testing
+/web-app/coverage/
+
+# React misc
+/web-app/npm-debug.log*
+/web-app/yarn-debug.log*
+/web-app/yarn-error.log*

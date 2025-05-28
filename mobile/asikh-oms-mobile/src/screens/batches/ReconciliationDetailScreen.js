@@ -231,58 +231,35 @@ const ReconciliationDetailScreen = () => {
     return '#4CAF50'; // Green for 100%
   };
   
-  // Handle barcode scan
-  const handleBarCodeScanned = ({ data }) => {
+  // Handle barcode scanning
+  const handleBarCodeScanned = ({ type, data }) => {
+    // Stop scanning
     setScanning(false);
-    setCurrentQrCode(data);
-    setShowCrateDetails(true);
     
-    // Show a brief confirmation toast or notification
-    console.log(`Crate scanned: ${data}`);
-    
-    // Automatically scroll to the crate details section
-    setTimeout(() => {
-      if (crateDetailsRef && crateDetailsRef.current) {
-        // For React Native, we need to use scrollTo instead of scrollIntoView
-        // This will be handled by the ScrollView containing the ref
-        crateDetailsRef.current.measure((fx, fy, width, height, px, py) => {
-          // The measure callback gives us the position on screen
-          // We can use this to scroll to the right position
-          if (py) {
-            // Get the scrollview ref and scroll to this position
-            if (scrollViewRef && scrollViewRef.current) {
-              scrollViewRef.current.scrollTo({ y: py, animated: true });
-            }
-          }
-        });
-      }
-    }, 100);
-  };
-  
-  // Handle taking a photo
-  const handleTakePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera permission is required to take photos');
+    // Check if the QR code has already been scanned
+    if (scannedCrates.includes(data)) {
+      Alert.alert(
+        'Already Scanned',
+        `Crate ${data} has already been reconciled with this batch.`
+      );
       return;
     }
     
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setCratePhoto(result.assets[0].uri);
+    // Find the crate in the batch to get its original weight if available
+    let originalWeight = null;
+    if (localBatch && localBatch.crate_details) {
+      const crate = localBatch.crate_details.find(c => c.qr_code === data);
+      if (crate) {
+        originalWeight = crate.original_weight;
       }
-    } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
     }
+    
+    // Navigate to the dedicated crate reconciliation screen
+    navigation.navigate('CrateReconciliation', {
+      batchId,
+      qrCode: data,
+      originalWeight
+    });
   };
   
   // Handle weight change
@@ -809,20 +786,26 @@ const ReconciliationDetailScreen = () => {
                   mode="contained"
                   onPress={() => {
                     if (manualQrCode.trim()) {
-                      setCurrentQrCode(manualQrCode.trim());
+                      // Instead of setting currentQrCode, navigate to CrateReconciliation screen
+                      const qrCode = manualQrCode.trim();
                       setManualQrCode('');
-                      setShowManualEntry(false); // Hide manual entry after submitting
+                      setShowManualEntry(false);
                       
-                      // Scroll to the crate details section after a short delay
-                      setTimeout(() => {
-                        if (crateDetailsRef && crateDetailsRef.current) {
-                          crateDetailsRef.current.measureInWindow((x, y, width, height) => {
-                            if (scrollViewRef && scrollViewRef.current) {
-                              scrollViewRef.current.scrollTo({ y: y, animated: true });
-                            }
-                          });
+                      // Find the crate in the batch to get its original weight if available
+                      let originalWeight = null;
+                      if (localBatch && localBatch.crate_details) {
+                        const crate = localBatch.crate_details.find(c => c.qr_code === qrCode);
+                        if (crate) {
+                          originalWeight = crate.original_weight;
                         }
-                      }, 100);
+                      }
+                      
+                      // Navigate to the dedicated crate reconciliation screen
+                      navigation.navigate('CrateReconciliation', {
+                        batchId,
+                        qrCode,
+                        originalWeight
+                      });
                     } else {
                       Alert.alert('Error', 'Please enter a valid QR code');
                     }

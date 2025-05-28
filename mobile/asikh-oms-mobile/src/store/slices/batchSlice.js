@@ -419,7 +419,24 @@ const batchSlice = createSlice({
       })
       .addCase(getBatches.fulfilled, (state, action) => {
         state.loading = false;
-        state.batches = action.payload.batches;
+        
+        // Check if we're appending batches with a different status
+        const params = action.meta.arg;
+        if (params && params.append === true) {
+          // Create a map of existing batches by ID to avoid duplicates
+          const existingBatchesMap = {};
+          state.batches.forEach(batch => {
+            existingBatchesMap[batch.id] = true;
+          });
+          
+          // Filter out any duplicates and append new batches
+          const newBatches = action.payload.batches.filter(batch => !existingBatchesMap[batch.id]);
+          state.batches = [...state.batches, ...newBatches];
+        } else {
+          // Replace all batches (default behavior)
+          state.batches = action.payload.batches;
+        }
+        
         state.pagination = {
           total: action.payload.total,
           page: action.payload.page,

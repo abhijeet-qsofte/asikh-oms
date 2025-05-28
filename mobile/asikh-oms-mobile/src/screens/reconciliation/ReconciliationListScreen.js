@@ -33,8 +33,8 @@ export default function ReconciliationListScreen({ navigation }) {
   useEffect(() => {
     if (batches && batches.length > 0) {
       const filtered = batches.filter(batch => {
-        // Only show delivered batches that can be reconciled
-        if (batch.status !== 'delivered') return false;
+        // Show arrived and delivered batches that can be reconciled
+        if (batch.status !== 'arrived' && batch.status !== 'delivered') return false;
         
         // Apply search filter if there's a query
         if (searchQuery) {
@@ -56,7 +56,10 @@ export default function ReconciliationListScreen({ navigation }) {
   // Load batches from API
   const loadBatches = async () => {
     try {
-      await dispatch(getBatches({ status: 'delivered' }));
+      // First fetch arrived batches
+      await dispatch(getBatches({ status: 'arrived' }));
+      // Then fetch delivered batches and append them to the existing list
+      await dispatch(getBatches({ status: 'delivered', append: true }));
     } catch (error) {
       console.error('Error loading batches:', error);
       Alert.alert('Error', 'Failed to load batches. Please try again.');
@@ -87,8 +90,13 @@ export default function ReconciliationListScreen({ navigation }) {
         <Card.Content>
           <View style={styles.cardHeader}>
             <Title style={styles.cardTitle}>{item.batch_code}</Title>
-            <Chip style={styles.statusChip}>
-              {item.status}
+            <Chip 
+              style={[styles.statusChip, { 
+                backgroundColor: item.status === 'arrived' ? '#03A9F4' : '#4CAF50'
+              }]}
+              textStyle={{ color: 'white' }}
+            >
+              {item.status.toUpperCase()}
             </Chip>
           </View>
           
@@ -100,6 +108,17 @@ export default function ReconciliationListScreen({ navigation }) {
           <View style={styles.cardRow}>
             <Ionicons name="location-outline" size={18} color={theme.colors.primary} />
             <Text style={styles.cardText}>To: {item.to_location_name || 'Unknown'}</Text>
+          </View>
+          
+          <View style={styles.cardRow}>
+            <Ionicons 
+              name={item.status === 'arrived' ? "time-outline" : "checkmark-circle-outline"} 
+              size={18} 
+              color={item.status === 'arrived' ? '#03A9F4' : '#4CAF50'} 
+            />
+            <Text style={styles.cardText}>
+              Reconciliation: {item.reconciliation_status || '0/0 (0%)'}
+            </Text>
           </View>
           
           <View style={styles.cardRow}>
