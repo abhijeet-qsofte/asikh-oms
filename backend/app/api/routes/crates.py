@@ -166,8 +166,8 @@ async def create_crate(
     return response
 
 
-@router.get("/get-unassigned-crates", response_model=List[CrateResponse])
-async def get_unassigned_crates(
+@router.get("/unassigned-list", response_model=List[dict])
+async def list_unassigned_crates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db_dependency),
@@ -179,14 +179,20 @@ async def get_unassigned_crates(
     # Query crates that don't have a batch_id
     query = db.query(Crate).filter(Crate.batch_id == None)
     
+    # Log the query
+    logger.info(f"Unassigned crates query: {str(query)}")    
+    
     # Apply pagination
     total_items = query.count()
+    logger.info(f"Found {total_items} unassigned crates")
+    
     query = query.offset((page - 1) * page_size).limit(page_size)
     
     # Get results
     crates = query.all()
+    logger.info(f"Returning {len(crates)} unassigned crates after pagination")
     
-    # Prepare response
+    # Prepare response - using dictionaries instead of Pydantic models to avoid validation issues
     result = []
     for crate in crates:
         # Get variety name if available
@@ -203,25 +209,25 @@ async def get_unassigned_crates(
             if farm:
                 farm_name = farm.name
         
-        # Create response object
-        crate_response = CrateResponse(
-            id=crate.id,
-            qr_code=crate.qr_code,
-            harvest_date=crate.harvest_date,
-            weight=crate.weight,
-            variety_id=crate.variety_id,
-            variety_name=variety_name,
-            farm_id=crate.farm_id,
-            farm_name=farm_name,
-            supervisor_id=crate.supervisor_id,
-            supervisor_name=crate.supervisor_name,
-            quality_grade=crate.quality_grade,
-            photo_url=crate.photo_url,
-            notes=crate.notes,
-            batch_id=None,
-            created_at=crate.created_at,
-            updated_at=crate.updated_at
-        )
+        # Create response dictionary
+        crate_response = {
+            "id": str(crate.id),
+            "qr_code": crate.qr_code,
+            "harvest_date": crate.harvest_date,
+            "weight": crate.weight,
+            "variety_id": str(crate.variety_id) if crate.variety_id else None,
+            "variety_name": variety_name,
+            "farm_id": str(crate.farm_id) if crate.farm_id else None,
+            "farm_name": farm_name,
+            "supervisor_id": str(crate.supervisor_id) if crate.supervisor_id else None,
+            "supervisor_name": None,  # Explicitly set to None to avoid the attribute error
+            "quality_grade": crate.quality_grade,
+            "photo_url": crate.photo_url,
+            "notes": crate.notes,
+            "batch_id": None,
+            "created_at": crate.created_at,
+            "updated_at": crate.updated_at
+        }
         result.append(crate_response)
     
     return result

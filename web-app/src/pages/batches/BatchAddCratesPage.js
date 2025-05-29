@@ -60,8 +60,11 @@ const BatchAddCratesPage = () => {
       setCrates(cratesResponse.data.crates || []);
       
       // Fetch unassigned crates
+      console.log('Fetching unassigned crates from:', `${API_URL}${ENDPOINTS.CRATES_UNASSIGNED}`);
       const unassignedResponse = await axios.get(`${API_URL}${ENDPOINTS.CRATES_UNASSIGNED}`);
+      console.log('Unassigned crates response:', unassignedResponse);
       setUnassignedCrates(unassignedResponse.data || []);
+      console.log('Unassigned crates set to:', unassignedResponse.data || []);
       
       setLoading(false);
     } catch (err) {
