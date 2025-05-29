@@ -13,8 +13,11 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import BatchesPage from './pages/batches/BatchesPage';
 import BatchDetailPage from './pages/batches/BatchDetailPage';
 import BatchCreatePage from './pages/batches/BatchCreatePage';
+import BatchReconciliationPage from './pages/batches/BatchReconciliationPage';
+import BatchAddCratesPage from './pages/batches/BatchAddCratesPage';
 import ReconciliationPage from './pages/reconciliation/ReconciliationPage';
 import ReconciliationDetailPage from './pages/reconciliation/ReconciliationDetailPage';
+import ReconciliationScanPage from './pages/reconciliation/ReconciliationScanPage';
 import CratesPage from './pages/crates/CratesPage';
 import CrateDetailPage from './pages/crates/CrateDetailPage';
 import CrateCreatePage from './pages/crates/CrateCreatePage';
@@ -60,10 +63,13 @@ function App() {
           <Route path="/batches" element={<BatchesPage />} />
           <Route path="/batches/create" element={<BatchCreatePage />} />
           <Route path="/batches/:id" element={<BatchDetailPage />} />
+          <Route path="/batches/:id/add-crates" element={<BatchAddCratesPage />} />
+          <Route path="/batches/:batchId/reconciliation" element={<BatchReconciliationPage />} />
           
           {/* Reconciliation Routes */}
           <Route path="/reconciliation" element={<ReconciliationPage />} />
           <Route path="/reconciliation/:id" element={<ReconciliationDetailPage />} />
+          <Route path="/reconciliation/:batchId/scan" element={<ReconciliationScanPage />} />
           
           {/* Crate Routes */}
           <Route path="/crates" element={<CratesPage />} />

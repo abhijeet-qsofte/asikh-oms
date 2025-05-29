@@ -25,14 +25,21 @@ import { format } from 'date-fns';
 const getStatusColor = (status) => {
   switch (status) {
     case 'PENDING':
+    case 'created':
       return 'warning';
     case 'DISPATCHED':
+    case 'in_transit':
+    case 'departed':
       return 'info';
     case 'ARRIVED':
+    case 'arrived':
+    case 'delivered':
       return 'success';
     case 'RECONCILED':
+    case 'reconciled':
       return 'primary';
     case 'CLOSED':
+    case 'closed':
       return 'default';
     default:
       return 'default';
@@ -41,10 +48,25 @@ const getStatusColor = (status) => {
 
 // Format status label for display
 const formatStatus = (status) => {
-  if (status === 'ARRIVED') {
-    return 'Arrived';
-  }
-  return status ? status.charAt(0) + status.slice(1).toLowerCase() : 'Unknown';
+  if (!status) return 'Unknown';
+  
+  // Convert to lowercase for consistent handling
+  const lowercaseStatus = status.toLowerCase();
+  
+  // Map status values to display labels
+  const statusMap = {
+    'pending': 'Pending',
+    'created': 'Created',
+    'dispatched': 'Dispatched',
+    'in_transit': 'In Transit',
+    'departed': 'Departed',
+    'arrived': 'Arrived',
+    'delivered': 'Delivered',
+    'reconciled': 'Reconciled',
+    'closed': 'Closed'
+  };
+  
+  return statusMap[lowercaseStatus] || status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
 };
 
 // Format date for display
@@ -57,30 +79,119 @@ const formatDate = (dateString) => {
   }
 };
 
-// Format weight differential
+// Format weight differential with color coding based on percentage loss
 const formatWeightDifferential = (original, reconciled) => {
   if (original === null || original === undefined || reconciled === null || reconciled === undefined) {
-    return 'N/A';
+    return { text: 'N/A', color: 'text.secondary' };
   }
   
   const differential = original - reconciled;
-  const percentage = original > 0 ? ((differential / original) * 100).toFixed(1) : 0;
+  const percentage = original > 0 ? ((differential / original) * 100) : 0;
   
-  return `${differential.toFixed(1)} kg (${percentage}%)`;
+  // Color coding based on percentage loss
+  let color = 'success.main';
+  if (percentage > 5 && percentage <= 10) {
+    color = 'warning.main';
+  } else if (percentage > 10) {
+    color = 'error.main';
+  }
+  
+  return {
+    text: `${differential.toFixed(1)} kg (${percentage.toFixed(1)}%)`,
+    color,
+    percentage: percentage.toFixed(1),
+    differential: differential.toFixed(1)
+  };
 };
 
 const BatchCard = ({ batch, onClick }) => {
+  // Helper function to safely get nested properties
+  const getNestedValue = (obj, path, defaultValue = 'N/A') => {
+    if (!obj) return defaultValue;
+    
+    // Handle both string paths and array paths
+    const parts = typeof path === 'string' ? path.split('.') : path;
+    
+    let result = obj;
+    for (const part of parts) {
+      if (result == null || result[part] === undefined) {
+        return defaultValue;
+      }
+      result = result[part];
+    }
+    
+    return result === null || result === undefined ? defaultValue : result;
+  };
+  
+  // Get farm name from various possible locations in the data structure
+  const getFarmName = () => {
+    // Try all possible paths where farm name might be stored
+    return getNestedValue(batch, 'farm.name') || 
+           getNestedValue(batch, 'farm_name') || 
+           getNestedValue(batch, 'farm_id.name') || 
+           getNestedValue(batch, 'from_location_name') || 
+           'N/A';
+  };
+  
+  // Get packhouse name from various possible locations
+  const getPackhouseName = () => {
+    return getNestedValue(batch, 'packhouse.name') || 
+           getNestedValue(batch, 'packhouse_name') || 
+           getNestedValue(batch, 'packhouse_id.name') || 
+           getNestedValue(batch, 'to_location_name') || 
+           'N/A';
+  };
+  
+  // Get weight from various possible locations
+  const getWeight = () => {
+    const weight = getNestedValue(batch, 'weight_details.original_weight', null) || 
+                  getNestedValue(batch, 'total_weight', null) || 
+                  getNestedValue(batch, 'weight', null) || 
+                  0;
+    
+    return weight > 0 ? `${parseFloat(weight).toFixed(1)} kg` : 'N/A';
+  };
+  
+  // Debug batch data structure
+  console.log('Batch data:', batch);
+  console.log('Farm name:', getFarmName());
+  console.log('Packhouse name:', getPackhouseName());
+  console.log('Weight:', getWeight());
+  
   // Extract weight details if available
-  const originalWeight = batch.weight_details?.original_weight || batch.total_weight || 0;
-  const reconciledWeight = batch.weight_details?.reconciled_weight || 0;
+  const originalWeight = getNestedValue(batch, 'weight_details.original_weight', 0) || 
+                        getNestedValue(batch, 'total_weight', 0) || 
+                        getNestedValue(batch, 'weight', 0) || 
+                        0;
+  const reconciledWeight = getNestedValue(batch, 'weight_details.reconciled_weight', 0) || 0;
   const weightDifferential = originalWeight - reconciledWeight;
   const weightDifferentialPercentage = originalWeight > 0 
     ? ((weightDifferential / originalWeight) * 100).toFixed(1)
     : 0;
   
   // Calculate reconciliation progress
-  const totalCrates = batch.crates?.length || 0;
-  const reconciledCrates = batch.weight_details?.reconciled_crates || 0;
+  const totalCrates = getNestedValue(batch, 'crates.length', 0) || 
+                    getNestedValue(batch, 'total_crates', 0) || 
+                    0;
+  
+  // Get reconciliation status if available
+  const getReconciliationStatus = () => {
+    const reconciledCrates = getNestedValue(batch, 'reconciliation_stats.reconciled_crates', 0);
+    const totalCrates = getNestedValue(batch, 'reconciliation_stats.total_crates', 0);
+    
+    if (totalCrates === 0) return null;
+    
+    const percentage = Math.round((reconciledCrates / totalCrates) * 100);
+    
+    // Return an object with text and color based on reconciliation progress
+    return {
+      text: `${reconciledCrates}/${totalCrates} (${percentage}%)`,
+      percentage,
+      isComplete: reconciledCrates === totalCrates,
+      color: reconciledCrates === totalCrates ? 'success.main' : 
+             percentage >= 50 ? 'warning.main' : 'error.main'
+    };
+  };
   
   return (
     <Card 
@@ -121,7 +232,7 @@ const BatchCard = ({ batch, onClick }) => {
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {batch.farm?.name || 'N/A'}
+                {getFarmName()}
               </Typography>
             </Grid>
             
@@ -133,7 +244,7 @@ const BatchCard = ({ batch, onClick }) => {
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {batch.packhouse?.name || 'N/A'}
+                {getPackhouseName()}
               </Typography>
             </Grid>
           </Grid>
@@ -161,7 +272,7 @@ const BatchCard = ({ batch, onClick }) => {
                 </Typography>
               </Box>
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                {originalWeight ? `${originalWeight.toFixed(1)} kg` : 'N/A'}
+                {getWeight()}
               </Typography>
             </Grid>
             
@@ -175,7 +286,7 @@ const BatchCard = ({ batch, onClick }) => {
                     </Typography>
                   </Box>
                   <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                    {reconciledCrates}/{totalCrates} crates
+                    {getReconciliationStatus()?.text || 'N/A'}
                   </Typography>
                 </Grid>
                 

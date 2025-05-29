@@ -6,95 +6,91 @@ import {
   Button,
   Container,
   Typography,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-  TextField,
-  InputAdornment,
   CircularProgress,
   Alert,
-  Chip,
-  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Search as SearchIcon,
   QrCode as QrCodeIcon,
-  Edit as EditIcon,
-  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
-import { getCrates } from '../../store/slices/crateSlice';
+import { getCrates, updateCrate, deleteCrate } from '../../store/slices/crateSlice';
+import { getVarieties } from '../../store/slices/varietySlice';
+import { getFarms } from '../../store/slices/farmSlice';
+import CrateList from '../../components/crates/CrateList';
 
 const CratesPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { crates, loading, error } = useSelector((state) => state.crates);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { crates, loading, error, pagination } = useSelector((state) => state.crates);
+  const { varieties } = useSelector((state) => state.varieties);
+  const { farms } = useSelector((state) => state.farms);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filters, setFilters] = useState({});
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [crateToDelete, setCrateToDelete] = useState(null);
   
+  // Fetch crates, varieties, and farms on component mount
   useEffect(() => {
     dispatch(getCrates());
+    dispatch(getVarieties());
+    dispatch(getFarms());
   }, [dispatch]);
   
-  const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+  // Handle filter changes
+  const handleFilter = (filterParams) => {
+    setFilters(filterParams);
+    setCurrentPage(1);
+    dispatch(getCrates({ ...filterParams, page: 1 }));
   };
   
-  const filteredCrates = Array.isArray(crates) ? crates.filter((crate) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      crate.id.toString().includes(searchLower) ||
-      (crate.qr_code && crate.qr_code.toLowerCase().includes(searchLower)) ||
-      (crate.batch && crate.batch.farm_name && crate.batch.farm_name.toLowerCase().includes(searchLower))
-    );
-  }) : [];
+  // Handle page change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    dispatch(getCrates({ ...filters, page }));
+  };
   
-  // Get status color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'HARVESTED':
-        return 'warning';
-      case 'IN_TRANSIT':
-        return 'info';
-      case 'RECEIVED':
-        return 'success';
-      case 'RECONCILED':
-        return 'primary';
-      default:
-        return 'default';
+  // Handle crate update
+  const handleCrateUpdate = (updatedCrate) => {
+    dispatch(updateCrate(updatedCrate));
+  };
+  
+  // Handle crate delete
+  const handleCrateDelete = (crateId) => {
+    setCrateToDelete(crateId);
+    setDeleteDialogOpen(true);
+  };
+  
+  // Confirm crate deletion
+  const confirmDelete = () => {
+    if (crateToDelete) {
+      dispatch(deleteCrate(crateToDelete));
+      setDeleteDialogOpen(false);
+      setCrateToDelete(null);
     }
+  };
+  
+  // Cancel crate deletion
+  const cancelDelete = () => {
+    setDeleteDialogOpen(false);
+    setCrateToDelete(null);
   };
   
   return (
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Crates
-        </Typography>
-        <Typography variant="body1" color="text.secondary" paragraph>
-          View and manage all crates in the system.
-        </Typography>
-        
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <TextField
-            placeholder="Search crates..."
-            variant="outlined"
-            size="small"
-            value={searchTerm}
-            onChange={handleSearchChange}
-            sx={{ width: '300px' }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <div>
+            <Typography variant="h4" component="h1" gutterBottom>
+              Crates
+            </Typography>
+            <Typography variant="body1" color="text.secondary">
+              View and manage all crates in the system.
+            </Typography>
+          </div>
           
           <Button
             variant="contained"
@@ -104,94 +100,38 @@ const CratesPage = () => {
             Add Crate
           </Button>
         </Box>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {loading ? (
-          <Box display="flex" justifyContent="center" padding={4}>
-            <CircularProgress />
-          </Box>
-        ) : filteredCrates.length === 0 ? (
-          <Paper sx={{ p: 4, textAlign: 'center' }}>
-            <QrCodeIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              No Crates Found
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              {searchTerm ? 'No crates match your search criteria' : 'Add your first crate to get started'}
-            </Typography>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/crates/create')}
-            >
-              Add Crate
-            </Button>
-          </Paper>
-        ) : (
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>ID</TableCell>
-                  <TableCell>QR Code</TableCell>
-                  <TableCell>Batch</TableCell>
-                  <TableCell>Farm</TableCell>
-                  <TableCell>Weight (kg)</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredCrates.map((crate) => (
-                  <TableRow key={crate.id}>
-                    <TableCell>{crate.id}</TableCell>
-                    <TableCell>{crate.qr_code || 'N/A'}</TableCell>
-                    <TableCell>
-                      {crate.batch ? (
-                        <Button
-                          size="small"
-                          variant="text"
-                          onClick={() => navigate(`/batches/${crate.batch.id}`)}
-                        >
-                          Batch #{crate.batch.id}
-                        </Button>
-                      ) : (
-                        'N/A'
-                      )}
-                    </TableCell>
-                    <TableCell>{crate.batch?.farm_name || 'N/A'}</TableCell>
-                    <TableCell>{crate.weight ? `${crate.weight} kg` : 'Not weighed'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={crate.status}
-                        color={getStatusColor(crate.status)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Tooltip title="View Details">
-                        <IconButton onClick={() => navigate(`/crates/${crate.id}`)}>
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton onClick={() => navigate(`/crates/${crate.id}/edit`)}>
-                          <EditIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
       </Box>
+      
+      {/* Crate List Component */}
+      <CrateList
+        crates={crates || []}
+        varieties={varieties || []}
+        farms={farms || []}
+        loading={loading}
+        error={error}
+        totalPages={pagination?.total_pages || 1}
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+        onUpdate={handleCrateUpdate}
+        onDelete={handleCrateDelete}
+        onFilter={handleFilter}
+      />
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={cancelDelete}>
+        <DialogTitle>Confirm Delete</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this crate? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={cancelDelete}>Cancel</Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

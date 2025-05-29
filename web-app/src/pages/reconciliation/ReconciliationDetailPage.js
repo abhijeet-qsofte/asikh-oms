@@ -285,6 +285,16 @@ const ReconciliationDetailPage = () => {
           <Typography variant="h4" component="h1">
             Reconcile Batch #{batch.id}
           </Typography>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<QrCodeScannerIcon />}
+            onClick={() => navigate(`/reconciliation/${batchId}/scan`)}
+            sx={{ ml: 2 }}
+          >
+            Scan & Reconcile
+          </Button>
         </Box>
       </Box>
       

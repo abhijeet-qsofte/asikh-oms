@@ -33,16 +33,18 @@ import {
   Delete as DeleteIcon,
   LocalShipping as LocalShippingIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   CompareArrows as ReconcileIcon,
   Add as AddIcon,
   Print as PrintIcon,
   Share as ShareIcon,
+  QrCode as QrCodeIcon,
+  AddBox as AddBoxIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { API_URL, ENDPOINTS } from '../../constants/api';
 import StatusStepper from '../../components/batches/StatusStepper';
+import BatchEditForm from '../../components/batches/BatchEditForm';
 
 const BatchDetailPage = () => {
   const { id } = useParams();
@@ -57,6 +59,12 @@ const BatchDetailPage = () => {
     message: '',
     action: null,
   });
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [farms, setFarms] = useState([]);
+  const [packhouses, setPackhouses] = useState([]);
+  const [varieties, setVarieties] = useState([]);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState(null);
   
   useEffect(() => {
     const fetchBatchDetails = async () => {
@@ -71,13 +79,47 @@ const BatchDetailPage = () => {
         const weightResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(id)}`);
         const weightData = weightResponse.data;
         
-        // Combine data
-        const batchWithDetails = {
+        // Fetch farms for edit form
+        const farmsResponse = await axios.get(`${API_URL}${ENDPOINTS.FARMS}`);
+        const farmsData = farmsResponse.data.farms || [];
+        
+        // Fetch packhouses for edit form
+        const packhousesResponse = await axios.get(`${API_URL}${ENDPOINTS.PACKHOUSES}`);
+        const packhousesData = packhousesResponse.data.packhouses || [];
+        
+        // Fetch varieties for edit form
+        const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
+        const varietiesData = varietiesResponse.data.varieties || [];
+        
+        // Create a map of farms and packhouses for easy lookup
+        const farmMap = {};
+        farmsData.forEach(farm => {
+          farmMap[farm.id] = farm;
+        });
+        
+        const packhouseMap = {};
+        packhousesData.forEach(packhouse => {
+          packhouseMap[packhouse.id] = packhouse;
+        });
+        
+        // Enhance batch with farm and packhouse objects
+        const enhancedBatch = {
           ...batchData,
           weight_details: weightData,
+          // Add farm object if farm_id exists
+          farm: batchData.farm_id && farmMap[batchData.farm_id] ? farmMap[batchData.farm_id] : null,
+          // Add packhouse object if packhouse_id exists
+          packhouse: batchData.packhouse_id && packhouseMap[batchData.packhouse_id] ? packhouseMap[batchData.packhouse_id] : null,
+          // Make sure farm_name is set
+          farm_name: batchData.farm_name || (batchData.farm_id && farmMap[batchData.farm_id] ? farmMap[batchData.farm_id].name : null),
+          // Make sure packhouse_name is set
+          packhouse_name: batchData.packhouse_name || (batchData.packhouse_id && packhouseMap[batchData.packhouse_id] ? packhouseMap[batchData.packhouse_id].name : null),
         };
         
-        setBatch(batchWithDetails);
+        setBatch(enhancedBatch);
+        setFarms(farmsData);
+        setPackhouses(packhousesData);
+        setVarieties(varietiesData);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching batch details:', error);
@@ -156,6 +198,56 @@ const BatchDetailPage = () => {
       setError('Failed to delete batch');
       setLoading(false);
       setConfirmDialog({ open: false });
+    }
+  };
+  
+  // Handle opening the edit dialog
+  const handleEditClick = () => {
+    setEditDialogOpen(true);
+    setEditError(null);
+  };
+  
+  // Handle closing the edit dialog
+  const handleEditClose = () => {
+    setEditDialogOpen(false);
+  };
+  
+  // Handle saving batch edits
+  const handleSaveBatch = async (formData) => {
+    try {
+      setEditLoading(true);
+      setEditError(null);
+      
+      // Format dates for API
+      const formatDate = (date) => {
+        if (!date) return null;
+        return new Date(date).toISOString();
+      };
+      
+      const updatedBatch = {
+        ...formData,
+        created_at: formatDate(formData.created_at),
+        departed_at: formatDate(formData.departed_at),
+        arrived_at: formatDate(formData.arrived_at),
+        reconciled_at: formatDate(formData.reconciled_at),
+        closed_at: formatDate(formData.closed_at),
+      };
+      
+      // Update batch
+      const response = await axios.put(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`, updatedBatch);
+      
+      // Update local state with new data
+      setBatch({
+        ...batch,
+        ...response.data,
+      });
+      
+      setEditLoading(false);
+      setEditDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating batch:', error);
+      setEditError('Failed to update batch: ' + (error.response?.data?.detail || error.message));
+      setEditLoading(false);
     }
   };
   
@@ -244,8 +336,50 @@ const BatchDetailPage = () => {
     );
   }
   
+  // Helper function to safely get nested properties
+  const getNestedValue = (obj, path, defaultValue = 'N/A') => {
+    if (!obj) return defaultValue;
+    
+    // Handle both string paths and array paths
+    const parts = typeof path === 'string' ? path.split('.') : path;
+    
+    let result = obj;
+    for (const part of parts) {
+      if (result == null || result[part] === undefined) {
+        return defaultValue;
+      }
+      result = result[part];
+    }
+    
+    return result === null || result === undefined ? defaultValue : result;
+  };
+  
+  // Get farm name from various possible locations in the data structure
+  const getFarmName = () => {
+    // Try all possible paths where farm name might be stored
+    return getNestedValue(batch, 'farm.name') || 
+           getNestedValue(batch, 'farm_name') || 
+           getNestedValue(batch, 'farm_id.name') || 
+           getNestedValue(batch, 'from_location_name') || 
+           'N/A';
+  };
+  
+  // Get packhouse name from various possible locations
+  const getPackhouseName = () => {
+    return getNestedValue(batch, 'packhouse.name') || 
+           getNestedValue(batch, 'packhouse_name') || 
+           getNestedValue(batch, 'packhouse_id.name') || 
+           getNestedValue(batch, 'to_location_name') || 
+           'N/A';
+  };
+  
+  // Debug batch data structure
+  console.log('Batch detail data:', batch);
+  console.log('Farm name:', getFarmName());
+  console.log('Packhouse name:', getPackhouseName());
+  
   // Calculate weight differential
-  const originalWeight = batch.weight_details?.original_weight || batch.total_weight || 0;
+  const originalWeight = batch.weight_details?.original_weight || batch.total_weight || batch.weight || 0;
   const reconciledWeight = batch.weight_details?.reconciled_weight || 0;
   const weightDifferential = originalWeight - reconciledWeight;
   const weightDifferentialPercentage = originalWeight > 0 
@@ -297,6 +431,14 @@ const BatchDetailPage = () => {
               >
                 Delete
               </Button>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<EditIcon />}
+                onClick={handleEditClick}
+              >
+                Edit
+              </Button>
             </>
           )}
           
@@ -312,14 +454,34 @@ const BatchDetailPage = () => {
           )}
           
           {batch.status === 'ARRIVED' && (
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<ReconcileIcon />}
-              onClick={() => navigate(`/reconciliation/${batch.id}`)}
-            >
-              Reconcile
-            </Button>
+            <>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<ReconcileIcon />}
+                onClick={() => navigate(`/reconciliation/${batch.id}`)}
+              >
+                Reconcile
+              </Button>
+              <Button
+                variant="contained"
+                color="secondary"
+                startIcon={<QrCodeIcon />}
+                onClick={() => navigate(`/batches/${batch.id}/reconciliation`)}
+              >
+                Scan & Reconcile
+              </Button>
+              {batch.status === 'PENDING' && (
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  startIcon={<AddBoxIcon />}
+                  onClick={() => navigate(`/batches/${batch.id}/add-crates`)}
+                >
+                  Add Crates
+                </Button>
+              )}
+            </>
           )}
           
           <Button
@@ -340,6 +502,17 @@ const BatchDetailPage = () => {
           >
             Share
           </Button>
+          
+          {/* Edit button for all statuses except PENDING (which has its own edit button above) */}
+          {batch.status !== 'PENDING' && (
+            <Button
+              variant="outlined"
+              startIcon={<EditIcon />}
+              onClick={handleEditClick}
+            >
+              Edit
+            </Button>
+          )}
         </Box>
       </Box>
       
@@ -372,7 +545,7 @@ const BatchDetailPage = () => {
                     Farm
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {batch.farm?.name || 'N/A'}
+                    {getFarmName()}
                   </Typography>
                 </Grid>
                 
@@ -381,7 +554,7 @@ const BatchDetailPage = () => {
                     Packhouse
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {batch.packhouse?.name || 'N/A'}
+                    {getPackhouseName()}
                   </Typography>
                 </Grid>
                 
@@ -399,7 +572,7 @@ const BatchDetailPage = () => {
                     Created By
                   </Typography>
                   <Typography variant="body1">
-                    {batch.created_by?.name || 'N/A'}
+                    {batch.created_by?.name || batch.supervisor_name || 'N/A'}
                   </Typography>
                 </Grid>
                 
@@ -439,24 +612,37 @@ const BatchDetailPage = () => {
             </CardContent>
           </Card>
           
-          {/* Weight Information Card */}
+          {/* Batch Summary Card */}
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Weight Information
+                Batch Summary
               </Typography>
               <Divider sx={{ mb: 2 }} />
               
-              <Grid container spacing={2}>
-                <Grid item xs={6}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 3, mt: 2 }}>
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                    {batch.total_crates || 0}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Crates
                   </Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {totalCrates}
-                  </Typography>
-                </Grid>
+                </Box>
                 
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                    {batch.total_weight ? `${batch.total_weight.toFixed(1)}` : '0'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Total Weight (kg)
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Divider sx={{ mb: 2 }} />
+              
+              <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Reconciled Crates
@@ -517,9 +703,72 @@ const BatchDetailPage = () => {
           </Card>
         </Grid>
         
-        {/* Right Column - Crates Table */}
+        {/* Right Column - Crates Table and Batch Statistics */}
         <Grid item xs={12} md={6}>
-          <Card sx={{ height: '100%' }}>
+          {/* Batch Statistics Card */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Detailed Statistics
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Grid container spacing={2}>
+                {batch.weight_details && (
+                  <>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Average Crate Weight
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {batch.total_crates > 0 
+                          ? (batch.total_weight / batch.total_crates).toFixed(1) + ' kg' 
+                          : 'N/A'}
+                      </Typography>
+                      {batch.weight_details && batch.weight_details.weight_differential !== undefined && (
+                        <Box sx={{ mt: 2 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Weight Differential
+                          </Typography>
+                          <Typography 
+                            variant="body1" 
+                            sx={{ 
+                              fontWeight: 500, 
+                              color: batch.weight_details.weight_differential > 0 ? 'success.main' : 'error.main'
+                            }}
+                          >
+                            {batch.weight_details.weight_differential.toFixed(1)} kg
+                            {batch.weight_details.weight_differential > 0 ? ' (gain)' : ' (loss)'}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Reconciliation Status
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {batch.status === 'RECONCILED' ? 'Complete' : 'In Progress'}
+                      </Typography>
+                    </Grid>
+                    
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Reconciliation Date
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {batch.reconciled_at ? formatDate(batch.reconciled_at) : 'Not reconciled'}
+                      </Typography>
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
+          
+          {/* Crates Table Card */}
+          <Card sx={{ height: 'calc(100% - 200px)' }}>
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6">
@@ -614,11 +863,8 @@ const BatchDetailPage = () => {
         </Grid>
       </Grid>
       
-      {/* Confirmation Dialog */}
-      <Dialog
-        open={confirmDialog.open}
-        onClose={closeConfirmDialog}
-      >
+      {/* Confirm Dialog */}
+      <Dialog open={confirmDialog.open} onClose={closeConfirmDialog}>
         <DialogTitle>{confirmDialog.title}</DialogTitle>
         <DialogContent>
           <DialogContentText>
@@ -642,6 +888,19 @@ const BatchDetailPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Batch Edit Form */}
+      <BatchEditForm
+        batch={batch}
+        farms={farms}
+        packhouses={packhouses}
+        varieties={varieties}
+        open={editDialogOpen}
+        onClose={handleEditClose}
+        onSave={handleSaveBatch}
+        loading={editLoading}
+        error={editError}
+      />
     </Container>
   );
 };

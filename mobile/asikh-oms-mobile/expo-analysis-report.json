@@ -1,0 +1,152 @@
+{
+  "projectInfo": {
+    "hasPackageJson": true,
+    "hasAppJson": true,
+    "hasAppConfig": false,
+    "isExpoProject": true,
+    "packageJson": {
+      "name": "asikh-oms-mobile",
+      "version": "1.0.0",
+      "main": "index.js",
+      "scripts": {
+        "start": "expo start",
+        "android": "expo run:android",
+        "ios": "expo run:ios",
+        "web": "expo start --web",
+        "build-android": "cd android && ./gradlew assembleRelease"
+      },
+      "dependencies": {
+        "@expo/webpack-config": "^0.12.52",
+        "@react-native-async-storage/async-storage": "1.18.2",
+        "@react-native-community/cli-platform-android": "^18.0.0",
+        "@react-native-community/datetimepicker": "7.2.0",
+        "@react-native-picker/picker": "2.4.10",
+        "@react-navigation/bottom-tabs": "^7.3.10",
+        "@react-navigation/native": "^7.1.6",
+        "@react-navigation/stack": "^7.2.10",
+        "@reduxjs/toolkit": "^2.7.0",
+        "axios": "^1.9.0",
+        "date-fns": "^4.1.0",
+        "expo": "^53.0.9",
+        "expo-barcode-scanner": "~12.5.3",
+        "expo-build-properties": "~0.8.3",
+        "expo-camera": "~13.4.4",
+        "expo-constants": "~14.4.2",
+        "expo-dev-client": "~2.4.13",
+        "expo-device": "~5.4.0",
+        "expo-image-manipulator": "~11.3.0",
+        "expo-image-picker": "~14.3.2",
+        "expo-linear-gradient": "~12.3.0",
+        "expo-linking": "~5.0.2",
+        "expo-location": "~16.1.0",
+        "expo-module-scripts": "^4.1.7",
+        "expo-modules-core": "~1.5.12",
+        "expo-secure-store": "~12.3.1",
+        "expo-splash-screen": "^0.30.8",
+        "expo-status-bar": "~1.6.0",
+        "formik": "^2.4.6",
+        "jwt-decode": "^4.0.0",
+        "react": "18.2.0",
+        "react-native": "^0.72.17",
+        "react-native-gesture-handler": "~2.12.0",
+        "react-native-paper": "^5.13.5",
+        "react-native-paper-dropdown": "^2.3.1",
+        "react-native-reanimated": "~3.3.0",
+        "react-native-safe-area-context": "4.6.3",
+        "react-native-screens": "~3.22.0",
+        "react-native-vector-icons": "^10.2.0",
+        "react-redux": "^9.2.0",
+        "redux": "^5.0.1",
+        "yup": "^1.6.1"
+      },
+      "devDependencies": {
+        "@babel/core": "^7.20.0",
+        "@react-native-community/cli": "latest",
+        "@types/babel__template": "^7.4.4",
+        "@types/istanbul-lib-report": "^3.0.3",
+        "@types/react": "~18.2.14",
+        "typescript": "^5.3.3"
+      },
+      "private": true
+    }
+  },
+  "dependencies": {
+    "expoSdk": "asikh-oms-mobile@1.0.0 /Users/abhi/dev/asikh-oms/mobile/asikh-oms-mobile\n├─┬ expo-barcode-scanner@12.5.3\n│ ├─┬ expo-image-loader@4.3.0\n│ │ └── expo@53.0.9 deduped\n│ └── expo@53.0.9 deduped\n├─┬ expo-build-properties@0.8.3\n│ └── expo@53.0.9 deduped\n├─┬ expo-camera@13.4.4\n│ └── expo@53.0.9 deduped\n├─┬ expo-constants@14.4.2\n│ └── expo@53.0.9 deduped\n├─┬ expo-dev-client@2.4.13\n│ ├─┬ expo-dev-launcher@2.4.15\n│ │ ├─┬ expo-dev-menu@3.2.3\n│ │ │ └── expo@53.0.9 deduped\n│ │ └── expo@53.0.9 deduped\n│ ├─┬ expo-dev-menu-interface@1.3.0\n│ │ └── expo@53.0.9 deduped\n│ ├─┬ expo-dev-menu@3.2.4\n│ │ └── expo@53.0.9 deduped\n│ ├─┬ expo-updates-interface@0.10.1\n│ │ └── expo@53.0.9 deduped\n│ └── expo@53.0.9 deduped\n├─┬ expo-device@5.4.0\n│ └── expo@53.0.9 deduped\n├─┬ expo-image-manipulator@11.3.0\n│ └── expo@53.0.9 deduped\n├─┬ expo-image-picker@14.3.2\n│ └── expo@53.0.9 deduped\n├─┬ expo-linear-gradient@12.3.0\n│ └── expo@53.0.9 deduped\n├─┬ expo-location@16.1.0\n│ └── expo@53.0.9 deduped\n├─┬ expo-module-scripts@4.1.7\n│ └─┬ jest-expo@53.0.5\n│   └── expo@53.0.9 deduped\n├─┬ expo-secure-store@12.3.1\n│ └── expo@53.0.9 deduped\n├─┬ expo-splash-screen@0.30.8\n│ └── expo@53.0.9 deduped\n└─┬ expo@53.0.9\n  ├─┬ expo-asset@11.1.5\n  │ ├─┬ expo-constants@17.1.6\n  │ │ └── expo@53.0.9 deduped\n  │ └── expo@53.0.9 deduped\n  ├─┬ expo-constants@17.1.6\n  │ └── expo@53.0.9 deduped\n  ├─┬ expo-file-system@18.1.10\n  │ └── expo@53.0.9 deduped\n  ├─┬ expo-font@13.3.1\n  │ └── expo@53.0.9 deduped\n  └─┬ expo-keep-awake@14.1.4\n    └── expo@53.0.9 deduped",
+    "doctorCheck": "Error: Command failed: npx expo doctor",
+    "reactNative": "asikh-oms-mobile@1.0.0 /Users/abhi/dev/asikh-oms/mobile/asikh-oms-mobile\n├─┬ @react-native-async-storage/async-storage@1.18.2\n│ └── react-native@0.72.17 deduped\n├─┬ @react-native-picker/picker@2.4.10\n│ └── react-native@0.72.17 deduped\n├─┬ @react-navigation/bottom-tabs@7.3.13\n│ ├─┬ @react-navigation/elements@2.4.2\n│ │ └── react-native@0.72.17 deduped\n│ └── react-native@0.72.17 deduped\n├─┬ @react-navigation/native@7.1.9\n│ └── react-native@0.72.17 deduped\n├─┬ @react-navigation/stack@7.3.2\n│ └── react-native@0.72.17 deduped\n├─┬ expo-module-scripts@4.1.7\n│ ├─┬ @testing-library/react-native@13.2.0\n│ │ └── react-native@0.72.17 deduped\n│ └─┬ jest-expo@53.0.5\n│   └── react-native@0.72.17 deduped\n├─┬ expo@53.0.9\n│ ├─┬ @expo/vector-icons@14.1.0\n│ │ └── react-native@0.72.17 deduped\n│ ├─┬ expo-asset@11.1.5\n│ │ ├─┬ expo-constants@17.1.6\n│ │ │ └── react-native@0.72.17 deduped\n│ │ └── react-native@0.72.17 deduped\n│ ├─┬ expo-constants@17.1.6\n│ │ └── react-native@0.72.17 deduped\n│ ├─┬ expo-file-system@18.1.10\n│ │ └── react-native@0.72.17 deduped\n│ ├─┬ react-native-edge-to-edge@1.6.0\n│ │ └── react-native@0.72.17 deduped\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-gesture-handler@2.12.1\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-paper-dropdown@2.3.1\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-paper@5.14.5\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-reanimated@3.3.0\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-safe-area-context@4.6.3\n│ └── react-native@0.72.17 deduped\n├─┬ react-native-screens@3.22.1 invalid: \">= 4.0.0\" from node_modules/@react-navigation/bottom-tabs, \">= 4.0.0\" from node_modules/@react-navigation/stack\n│ └── react-native@0.72.17 deduped\n└─┬ react-native@0.72.17\n  └─┬ @react-native/virtualized-lists@0.72.8\n    └── react-native@0.72.17 deduped",
+    "all": {
+      "dependencies": {
+        "@expo/webpack-config": "^0.12.52",
+        "@react-native-async-storage/async-storage": "1.18.2",
+        "@react-native-community/cli-platform-android": "^18.0.0",
+        "@react-native-community/datetimepicker": "7.2.0",
+        "@react-native-picker/picker": "2.4.10",
+        "@react-navigation/bottom-tabs": "^7.3.10",
+        "@react-navigation/native": "^7.1.6",
+        "@react-navigation/stack": "^7.2.10",
+        "@reduxjs/toolkit": "^2.7.0",
+        "axios": "^1.9.0",
+        "date-fns": "^4.1.0",
+        "expo": "^53.0.9",
+        "expo-barcode-scanner": "~12.5.3",
+        "expo-build-properties": "~0.8.3",
+        "expo-camera": "~13.4.4",
+        "expo-constants": "~14.4.2",
+        "expo-dev-client": "~2.4.13",
+        "expo-device": "~5.4.0",
+        "expo-image-manipulator": "~11.3.0",
+        "expo-image-picker": "~14.3.2",
+        "expo-linear-gradient": "~12.3.0",
+        "expo-linking": "~5.0.2",
+        "expo-location": "~16.1.0",
+        "expo-module-scripts": "^4.1.7",
+        "expo-modules-core": "~1.5.12",
+        "expo-secure-store": "~12.3.1",
+        "expo-splash-screen": "^0.30.8",
+        "expo-status-bar": "~1.6.0",
+        "formik": "^2.4.6",
+        "jwt-decode": "^4.0.0",
+        "react": "18.2.0",
+        "react-native": "^0.72.17",
+        "react-native-gesture-handler": "~2.12.0",
+        "react-native-paper": "^5.13.5",
+        "react-native-paper-dropdown": "^2.3.1",
+        "react-native-reanimated": "~3.3.0",
+        "react-native-safe-area-context": "4.6.3",
+        "react-native-screens": "~3.22.0",
+        "react-native-vector-icons": "^10.2.0",
+        "react-redux": "^9.2.0",
+        "redux": "^5.0.1",
+        "yup": "^1.6.1"
+      },
+      "devDependencies": {
+        "@babel/core": "^7.20.0",
+        "@react-native-community/cli": "latest",
+        "@types/babel__template": "^7.4.4",
+        "@types/istanbul-lib-report": "^3.0.3",
+        "@types/react": "~18.2.14",
+        "typescript": "^5.3.3"
+      }
+    }
+  },
+  "environment": {
+    "Node.js": "v23.9.0",
+    "npm": "10.9.2",
+    "Java": "",
+    "ANDROID_HOME": "/Users/abhi/Library/Android/sdk",
+    "JAVA_HOME": "/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home",
+    "ADB": "Android Debug Bridge version 1.0.41\nVersion 35.0.2-12147458\nInstalled as /Users/abhi/Library/Android/sdk/platform-tools/adb\nRunning on Darwin 24.3.0 (arm64)",
+    "Gradle": "Error: Command failed: gradle --version\n/bin/sh: gradle: command not found\n"
+  },
+  "expoConfig": {
+    "basic": "{\n  name: \u001b[32m'Asikh OMS'\u001b[39m,\n  slug: \u001b[32m'asikh-oms-mobile'\u001b[39m,\n  version: \u001b[32m'1.0.0'\u001b[39m,\n  jsEngine: \u001b[32m'jsc'\u001b[39m,\n  orientation: \u001b[32m'portrait'\u001b[39m,\n  icon: \u001b[32m'./assets/icon.png'\u001b[39m,\n  userInterfaceStyle: \u001b[32m'light'\u001b[39m,\n  newArchEnabled: \u001b[33mfalse\u001b[39m,\n  scheme: \u001b[32m'asikhoms'\u001b[39m,\n  plugins: [\n    \u001b[32m'expo-build-properties'\u001b[39m\n  ],\n  description: \u001b[90mundefined\u001b[39m,\n  sdkVersion: \u001b[32m'53.0.0'\u001b[39m,\n  platforms: [\n    \u001b[32m'ios'\u001b[39m,\n    \u001b[32m'android'\u001b[39m,\n    \u001b[32m'web'\u001b[39m\n  ],\n  splash: {\n    image: \u001b[32m'./assets/splash-icon.png'\u001b[39m,\n    resizeMode: \u001b[32m'contain'\u001b[39m,\n    backgroundColor: \u001b[32m'#ffffff'\u001b[39m\n  },\n  ios: {\n    supportsTablet: \u001b[33mtrue\u001b[39m,\n    bundleIdentifier: \u001b[32m'com.anonymous.asikhomsmobile'\u001b[39m,\n    associatedDomains: [\n      \u001b[32m'applinks:asikhoms.com'\u001b[39m\n    ]\n  },\n  android: {\n    package: \u001b[32m'com.anonymous.asikhomsmobile'\u001b[39m,\n    intentFilters: [\n      {\n        action: \u001b[32m'VIEW'\u001b[39m,\n        autoVerify: \u001b[33mtrue\u001b[39m,\n        data: [\n          {\n            scheme: \u001b[32m'https'\u001b[39m,\n            host: \u001b[32m'*.asikhoms.com'\u001b[39m,\n            pathPrefix: \u001b[32m'/'\u001b[39m\n          },\n          {\n            scheme: \u001b[32m'asikhoms'\u001b[39m\n          }\n        ],\n        category: [\n          \u001b[32m'BROWSABLE'\u001b[39m,\n          \u001b[32m'DEFAULT'\u001b[39m\n        ]\n      }\n    ],\n    permissions: [\n      \u001b[32m'android.permission.CAMERA'\u001b[39m,\n      \u001b[32m'android.permission.INTERNET'\u001b[39m,\n      \u001b[32m'android.permission.ACCESS_NETWORK_STATE'\u001b[39m\n    ],\n    adaptiveIcon: {\n      foregroundImage: \u001b[32m'./assets/adaptive-icon.png'\u001b[39m,\n      backgroundColor: \u001b[32m'#ffffff'\u001b[39m\n    },\n    config: {\n      useCleartextTraffic: \u001b[33mtrue\u001b[39m\n    }\n  },\n  web: {\n    favicon: \u001b[32m'./assets/favicon.png'\u001b[39m\n  },\n  extra: {\n    eas: {\n      projectId: \u001b[32m'405119eb-b251-4d23-9f5a-c20649204278'\u001b[39m\n    }\n  },\n  _internal: {\n    isDebug: \u001b[33mfalse\u001b[39m,\n    projectRoot: \u001b[32m'/Users/abhi/dev/asikh-oms/mobile/asikh-oms-mobile'\u001b[39m,\n    staticConfigPath: \u001b[32m'/Users/abhi/dev/asikh-oms/mobile/asikh-oms-mobile/app.json'\u001b[39m,\n    packageJsonPath: \u001b[32m'/Users/abhi/dev/asikh-oms/mobile/asikh-oms-mobile/package.json'\u001b[39m,\n    dynamicConfigPath: {}\n  }\n}",
+    "detailed": "{\n  name: \u001b[32m'Asikh OMS'\u001b[39m,\n  slug: \u001b[32m'asikh-oms-mobile'\u001b[39m,\n  version: \u001b[32m'1.0.0'\u001b[39m,\n  jsEngine: \u001b[32m'jsc'\u001b[39m,\n  orientation: \u001b[32m'portrait'\u001b[39m,\n  icon: \u001b[32m'./assets/icon.png'\u001b[39m,\n  userInterfaceStyle: \u001b[32m'light'\u001b[39m,\n  newArchEnabled: \u001b[33mfalse\u001b[39m,\n  scheme: \u001b[32m'asikhoms'\u001b[39m,\n  plugins: [\n    \u001b[32m'expo-build-properties'\u001b[39m\n  ],\n  description: \u001b[90mundefined\u001b[39m,\n  sdkVersion: \u001b[32m'53.0.0'\u001b[39m,\n  platforms: [\n    \u001b[32m'ios'\u001b[39m,\n    \u001b[32m'android'\u001b[39m,\n    \u001b[32m'web'\u001b[39m\n  ],\n  splash: {\n    image: \u001b[32m'./assets/splash-icon.png'\u001b[39m,\n    resizeMode: \u001b[32m'contain'\u001b[39m,\n    backgroundColor: \u001b[32m'#ffffff'\u001b[39m\n  },\n  ios: {\n    supportsTablet: \u001b[33mtrue\u001b[39m,\n    bundleIdentifier: \u001b[32m'com.anonymous.asikhomsmobile'\u001b[39m,\n    associatedDomains: [\n      \u001b[32m'applinks:asikhoms.com'\u001b[39m\n    ]\n  },\n  android: {\n    package: \u001b[32m'com.anonymous.asikhomsmobile'\u001b[39m,\n    intentFilters: [\n      {\n        action: \u001b[32m'VIEW'\u001b[39m,\n        autoVerify: \u001b[33mtrue\u001b[39m,\n        data: [\n          {\n            scheme: \u001b[32m'https'\u001b[39m,\n            host: \u001b[32m'*.asikhoms.com'\u001b[39m,\n            pathPrefix: \u001b[32m'/'\u001b[39m\n          },\n          {\n            scheme: \u001b[32m'asikhoms'\u001b[39m\n          }\n        ],\n        category: [\n          \u001b[32m'BROWSABLE'\u001b[39m,\n          \u001b[32m'DEFAULT'\u001b[39m\n        ]\n      }\n    ],\n    permissions: [\n      \u001b[32m'android.permission.CAMERA'\u001b[39m,\n      \u001b[32m'android.permission.INTERNET'\u001b[39m,\n      \u001b[32m'android.permission.ACCESS_NETWORK_STATE'\u001b[39m\n    ],\n    adaptiveIcon: {\n      foregroundImage: \u001b[32m'./assets/adaptive-icon.png'\u001b[39m,\n      backgroundColor: \u001b[32m'#ffffff'\u001b[39m\n    }\n  },\n  web: {\n    favicon: \u001b[32m'./assets/favicon.png'\u001b[39m\n  },\n  extra: {\n    eas: {\n      projectId: \u001b[32m'405119eb-b251-4d23-9f5a-c20649204278'\u001b[39m\n    }\n  }\n}",
+    "cliVersion": "0.24.13"
+  },
+  "compatibilityIssues": [
+    "Custom native dependencies detected - may not work in Expo Go"
+  ],
+  "recommendations": [
+    "Consider using EAS Build for custom native dependencies"
+  ]
+}

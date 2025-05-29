@@ -73,6 +73,22 @@ export const updateCrate = createAsyncThunk(
   }
 );
 
+// Delete crate
+export const deleteCrate = createAsyncThunk(
+  'crates/deleteCrate',
+  async (id, { rejectWithValue }) => {
+    try {
+      await axios.delete(`${API_URL}${ENDPOINTS.CRATE_DETAIL(id)}`);
+      toast.success('Crate deleted successfully');
+      return id;
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Failed to delete crate';
+      toast.error(message);
+      return rejectWithValue(message);
+    }
+  }
+);
+
 // Update crate weight
 export const updateCrateWeight = createAsyncThunk(
   'crates/updateCrateWeight',
@@ -257,6 +273,35 @@ const crateSlice = createSlice({
       .addCase(updateCrateWeight.rejected, (state, action) => {
         state.updateLoading = false;
         state.updateError = action.payload;
+        toast.error(action.payload);
+      })
+      
+      // Delete crate
+      .addCase(deleteCrate.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteCrate.fulfilled, (state, action) => {
+        state.loading = false;
+        
+        // Remove from crates array
+        state.crates = state.crates.filter((crate) => crate.id !== action.payload);
+        
+        // Remove from batch crates if it exists
+        Object.keys(state.batchCrates).forEach((batchId) => {
+          state.batchCrates[batchId] = state.batchCrates[batchId].filter(
+            (crate) => crate.id !== action.payload
+          );
+        });
+        
+        // Clear current crate if it's the same
+        if (state.currentCrate && state.currentCrate.id === action.payload) {
+          state.currentCrate = null;
+        }
+      })
+      .addCase(deleteCrate.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
         toast.error(action.payload);
       });
   },

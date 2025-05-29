@@ -84,29 +84,62 @@ const BatchesPage = () => {
         const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
         const varietiesData = varietiesResponse.data.varieties || [];
         
-        // Fetch weight details for each batch
-        const batchesWithWeightDetails = await Promise.all(
+        // Create a map of farms and packhouses for easy lookup
+        const farmMap = {};
+        farmsData.forEach(farm => {
+          farmMap[farm.id] = farm;
+        });
+        
+        const packhouseMap = {};
+        packhousesData.forEach(packhouse => {
+          packhouseMap[packhouse.id] = packhouse;
+        });
+        
+        // Fetch weight details for each batch and enhance batch data
+        const batchesWithDetails = await Promise.all(
           batchesData.map(async (batch) => {
             try {
+              // Fetch weight details
               const weightResponse = await axios.get(
                 `${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(batch.id)}`
               );
-              return {
+              
+              // Enhance batch with farm and packhouse objects
+              const enhancedBatch = {
                 ...batch,
                 weight_details: weightResponse.data,
+                // Add farm object if farm_id exists
+                farm: batch.farm_id && farmMap[batch.farm_id] ? farmMap[batch.farm_id] : null,
+                // Add packhouse object if packhouse_id exists
+                packhouse: batch.packhouse_id && packhouseMap[batch.packhouse_id] ? packhouseMap[batch.packhouse_id] : null,
+                // Make sure farm_name is set
+                farm_name: batch.farm_name || (batch.farm_id && farmMap[batch.farm_id] ? farmMap[batch.farm_id].name : null),
+                // Make sure packhouse_name is set
+                packhouse_name: batch.packhouse_name || (batch.packhouse_id && packhouseMap[batch.packhouse_id] ? packhouseMap[batch.packhouse_id].name : null),
               };
+              
+              console.log('Enhanced batch:', enhancedBatch);
+              return enhancedBatch;
             } catch (error) {
-              console.error(`Error fetching weight details for batch ${batch.id}:`, error);
+              console.error(`Error fetching details for batch ${batch.id}:`, error);
               return {
                 ...batch,
                 weight_details: null,
+                // Add farm object if farm_id exists
+                farm: batch.farm_id && farmMap[batch.farm_id] ? farmMap[batch.farm_id] : null,
+                // Add packhouse object if packhouse_id exists
+                packhouse: batch.packhouse_id && packhouseMap[batch.packhouse_id] ? packhouseMap[batch.packhouse_id] : null,
+                // Make sure farm_name is set
+                farm_name: batch.farm_name || (batch.farm_id && farmMap[batch.farm_id] ? farmMap[batch.farm_id].name : null),
+                // Make sure packhouse_name is set
+                packhouse_name: batch.packhouse_name || (batch.packhouse_id && packhouseMap[batch.packhouse_id] ? packhouseMap[batch.packhouse_id].name : null),
               };
             }
           })
         );
         
-        setBatches(batchesWithWeightDetails);
-        setFilteredBatches(batchesWithWeightDetails);
+        setBatches(batchesWithDetails);
+        setFilteredBatches(batchesWithDetails);
         setFarms(farmsData);
         setPackhouses(packhousesData);
         setVarieties(varietiesData);

@@ -5,6 +5,8 @@ import crateReducer from './slices/crateSlice';
 import reconciliationReducer from './slices/reconciliationSlice';
 import adminReducer from './slices/adminSlice';
 import uiReducer from './slices/uiSlice';
+import varietyReducer from './slices/varietySlice';
+import farmReducer from './slices/farmSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +16,8 @@ export const store = configureStore({
     reconciliation: reconciliationReducer,
     admin: adminReducer,
     ui: uiReducer,
+    varieties: varietyReducer,
+    farms: farmReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
