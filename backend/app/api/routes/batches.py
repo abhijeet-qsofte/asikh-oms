@@ -238,6 +238,8 @@ async def create_batch(
             driver_name=batch_data.driver_name,
             eta=batch_data.eta,
             photo_url=batch_data.photo_url,
+            latitude=batch_data.latitude if batch_data.latitude is not None else 0.0,
+            longitude=batch_data.longitude if batch_data.longitude is not None else 0.0,
             notes=batch_data.notes,
             status="open",
             total_crates=0,
