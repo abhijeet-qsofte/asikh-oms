@@ -6,7 +6,6 @@ import {
   StepLabel,
   Typography,
   Paper,
-  Tooltip,
 } from '@mui/material';
 import {
   Create as CreateIcon,
@@ -20,34 +19,40 @@ import { format } from 'date-fns';
 // Status steps for the batch workflow
 const steps = [
   {
-    label: 'Created',
+    label: 'Open',
     icon: <CreateIcon />,
     description: 'Batch created and ready for dispatch',
-    status: 'PENDING',
+    status: 'open',
   },
   {
-    label: 'Dispatched',
+    label: 'In Transit',
     icon: <DispatchIcon />,
-    description: 'Batch dispatched from farm to packhouse',
-    status: 'DISPATCHED',
+    description: 'Batch in transit from farm to packhouse',
+    status: 'in_transit',
   },
   {
     label: 'Arrived',
     icon: <ArriveIcon />,
     description: 'Batch arrived at packhouse',
-    status: 'ARRIVED',
+    status: 'arrived',
   },
   {
     label: 'Reconciled',
     icon: <ReconcileIcon />,
     description: 'Batch crates reconciled at packhouse',
-    status: 'RECONCILED',
+    status: 'reconciled',
+  },
+  {
+    label: 'Delivered',
+    icon: <DispatchIcon />,
+    description: 'Batch delivered to final destination',
+    status: 'delivered',
   },
   {
     label: 'Closed',
     icon: <CloseIcon />,
     description: 'Batch closed and archived',
-    status: 'CLOSED',
+    status: 'closed',
   },
 ];
 

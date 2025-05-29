@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -6,26 +6,27 @@ import {
   Card,
   CardContent,
   Container,
-  Grid,
   Typography,
+  Paper,
   Divider,
-  Chip,
+  Grid,
   CircularProgress,
   Alert,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
   IconButton,
+  Chip,
   Tooltip,
+  TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -39,11 +40,13 @@ import {
   Share as ShareIcon,
   QrCode as QrCodeIcon,
   AddBox as AddBoxIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { API_URL, ENDPOINTS } from '../../constants/api';
 import StatusStepper from '../../components/batches/StatusStepper';
+import QRScanner from '../../components/qrcode/QRScanner';
 import BatchEditForm from '../../components/batches/BatchEditForm';
 
 const BatchDetailPage = () => {
@@ -60,11 +63,17 @@ const BatchDetailPage = () => {
     action: null,
   });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editError, setEditError] = useState(null);
+  
+  // QR code scanning state
+  const [scanning, setScanning] = useState(false);
+  const [manualEntry, setManualEntry] = useState(false);
+  const [manualQRCode, setManualQRCode] = useState('');
+  const [scanSuccess, setScanSuccess] = useState(null);
   const [farms, setFarms] = useState([]);
   const [packhouses, setPackhouses] = useState([]);
   const [varieties, setVarieties] = useState([]);
   const [editLoading, setEditLoading] = useState(false);
-  const [editError, setEditError] = useState(null);
   
   useEffect(() => {
     const fetchBatchDetails = async () => {
@@ -171,8 +180,8 @@ const BatchDetailPage = () => {
   const handleDispatch = () => {
     openConfirmDialog(
       'Dispatch Batch',
-      'Are you sure you want to mark this batch as dispatched? This will record the current time as the departure time.',
-      () => handleStatusChange('DISPATCHED')
+      'Are you sure you want to mark this batch as in transit? This will record the current time as the departure time.',
+      () => handleStatusChange('in_transit')
     );
   };
   
@@ -180,8 +189,68 @@ const BatchDetailPage = () => {
     openConfirmDialog(
       'Mark as Arrived',
       'Are you sure you want to mark this batch as arrived at the packhouse? This will record the current time as the arrival time.',
-      () => handleStatusChange('ARRIVED')
+      () => handleStatusChange('arrived')
     );
+  };
+  
+  const handleReconcile = () => {
+    openConfirmDialog(
+      'Mark as Reconciled',
+      'Are you sure you want to mark this batch as reconciled? This indicates that all crates have been reconciled.',
+      () => handleStatusChange('reconciled')
+    );
+  };
+  
+  const handleDeliver = () => {
+    openConfirmDialog(
+      'Mark as Delivered',
+      'Are you sure you want to mark this batch as delivered? This indicates the batch has been sent to its final destination.',
+      () => handleStatusChange('delivered')
+    );
+  };
+  
+  const handleClose = () => {
+    openConfirmDialog(
+      'Close Batch',
+      'Are you sure you want to close this batch? This will mark the batch as completed and archive it.',
+      () => handleStatusChange('closed')
+    );
+  };
+  
+  // Handle QR code scan to add crate to batch
+  const handleScan = useCallback(async (qrCode) => {
+    setScanning(false);
+    
+    try {
+      setLoading(true);
+      setScanSuccess(null);
+      
+      // Add crate to batch
+      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(id)}`, { qr_code: qrCode });
+      
+      // Show success message
+      setScanSuccess(`Crate ${qrCode} added to batch successfully`);
+      
+      // Refresh batch details
+      const batchResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`);
+      setBatch(batchResponse.data);
+    } catch (err) {
+      console.error('Error adding crate to batch:', err);
+      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      setLoading(false);
+    }
+  }, [id]);
+  
+  // Handle manual QR code entry
+  const handleManualSubmit = () => {
+    if (!manualQRCode.trim()) {
+      setError('Please enter a QR code');
+      return;
+    }
+    
+    handleScan(manualQRCode.trim());
+    setManualQRCode('');
+    setManualEntry(false);
   };
   
   const handleDelete = async () => {
@@ -270,24 +339,26 @@ const BatchDetailPage = () => {
   
   // Format status label for display
   const formatStatus = (status) => {
-    if (status === 'ARRIVED') {
-      return 'Arrived';
-    }
-    return status ? status.charAt(0) + status.slice(1).toLowerCase() : 'Unknown';
+    if (!status) return 'Unknown';
+    
+    // Convert snake_case to Title Case
+    return status.split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
   
   // Get status color
   const getStatusColor = (status) => {
     switch (status) {
-      case 'PENDING':
+      case 'open':
         return 'warning';
-      case 'DISPATCHED':
+      case 'in_transit':
         return 'info';
-      case 'ARRIVED':
+      case 'arrived':
         return 'success';
-      case 'RECONCILED':
+      case 'delivered':
         return 'primary';
-      case 'CLOSED':
+      case 'closed':
         return 'default';
       default:
         return 'default';
@@ -395,15 +466,16 @@ const BatchDetailPage = () => {
       {/* Header */}
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Button
-            startIcon={<ArrowBackIcon />}
+          <IconButton
+            edge="start"
+            color="inherit"
             onClick={() => navigate('/batches')}
             sx={{ mr: 2 }}
           >
-            Back
-          </Button>
+            <ArrowBackIcon />
+          </IconButton>
           <Typography variant="h4" component="h1">
-            Batch #{batch.id}
+            {batch?.batch_code ? `Batch: ${batch.batch_code}` : 'Batch Details'}
           </Typography>
           <Chip
             label={formatStatus(batch.status)}
@@ -413,7 +485,7 @@ const BatchDetailPage = () => {
         </Box>
         
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {batch.status === 'PENDING' && (
+          {batch.status === 'open' && (
             <>
               <Button
                 variant="contained"
@@ -424,25 +496,35 @@ const BatchDetailPage = () => {
                 Dispatch
               </Button>
               <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={confirmDelete}
+                variant="contained"
+                color="secondary"
+                startIcon={<AddBoxIcon />}
+                onClick={() => navigate(`/batches/${batch.id}/add-crates`)}
               >
-                Delete
+                Add Crates
               </Button>
               <Button
                 variant="outlined"
-                color="primary"
-                startIcon={<EditIcon />}
-                onClick={handleEditClick}
+                color="secondary"
+                startIcon={<QrCodeIcon />}
+                onClick={() => setScanning(true)}
               >
-                Edit
+                Scan QR Code
+              </Button>
+              <Button
+                variant="text"
+                color="error"
+                size="small"
+                startIcon={<DeleteIcon />}
+                onClick={confirmDelete}
+                sx={{ ml: 1 }}
+              >
+                Delete
               </Button>
             </>
           )}
           
-          {batch.status === 'DISPATCHED' && (
+          {batch.status === 'in_transit' && (
             <Button
               variant="contained"
               color="success"
@@ -453,7 +535,7 @@ const BatchDetailPage = () => {
             </Button>
           )}
           
-          {batch.status === 'ARRIVED' && (
+          {batch.status === 'arrived' && (
             <>
               <Button
                 variant="contained"
@@ -471,17 +553,37 @@ const BatchDetailPage = () => {
               >
                 Scan & Reconcile
               </Button>
-              {batch.status === 'PENDING' && (
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  startIcon={<AddBoxIcon />}
-                  onClick={() => navigate(`/batches/${batch.id}/add-crates`)}
-                >
-                  Add Crates
-                </Button>
-              )}
+              <Button
+                variant="contained"
+                color="success"
+                startIcon={<CheckCircleIcon />}
+                onClick={handleReconcile}
+              >
+                Mark as Reconciled
+              </Button>
             </>
+          )}
+          
+          {batch.status === 'reconciled' && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<LocalShippingIcon />}
+              onClick={handleDeliver}
+            >
+              Mark as Delivered
+            </Button>
+          )}
+          
+          {batch.status === 'delivered' && (
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<CloseIcon />}
+              onClick={handleClose}
+            >
+              Close Batch
+            </Button>
           )}
           
           <Button
@@ -608,6 +710,46 @@ const BatchDetailPage = () => {
                     </Typography>
                   </Grid>
                 )}
+              </Grid>
+            </CardContent>
+          </Card>
+          
+          {/* Farm Data Card */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" component="h2" gutterBottom>
+                Farm Information
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Farm Name
+                  </Typography>
+                  <Typography variant="body1">
+                    {batch.from_location_name || 'N/A'}
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Farm ID
+                  </Typography>
+                  <Typography variant="body1">
+                    {batch.from_location || 'N/A'}
+                  </Typography>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Farm Data Association
+                  </Typography>
+                  <Typography variant="body1">
+                    All crates in this batch are associated with {batch.from_location_name}.
+                    This ensures proper tracking and reporting of farm data throughout the supply chain.
+                  </Typography>
+                </Grid>
               </Grid>
             </CardContent>
           </Card>
@@ -901,6 +1043,79 @@ const BatchDetailPage = () => {
         loading={editLoading}
         error={editError}
       />
+      
+      {/* QR Scanner Dialog */}
+      <Dialog
+        open={scanning}
+        onClose={() => setScanning(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Scan QR Code</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <QRScanner onScan={handleScan} />
+            <Button
+              variant="outlined"
+              onClick={() => {
+                setScanning(false);
+                setManualEntry(true);
+              }}
+            >
+              Enter QR Code Manually
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setScanning(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Manual QR Entry Dialog */}
+      <Dialog
+        open={manualEntry}
+        onClose={() => setManualEntry(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enter QR Code</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <TextField
+              autoFocus
+              fullWidth
+              label="QR Code"
+              value={manualQRCode}
+              onChange={(e) => setManualQRCode(e.target.value)}
+              variant="outlined"
+              placeholder="Enter QR code"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManualEntry(false)}>Cancel</Button>
+          <Button onClick={handleManualSubmit} variant="contained" color="primary">
+            Add Crate
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Success Message */}
+      {scanSuccess && (
+        <Alert 
+          severity="success" 
+          sx={{ 
+            position: 'fixed', 
+            bottom: 16, 
+            right: 16, 
+            zIndex: 9999,
+            maxWidth: '80%' 
+          }}
+          onClose={() => setScanSuccess(null)}
+        >
+          {scanSuccess}
+        </Alert>
+      )}
     </Container>
   );
 };

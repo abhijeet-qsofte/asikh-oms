@@ -38,6 +38,7 @@ const BatchAddCratesPage = () => {
   
   const [batch, setBatch] = useState(null);
   const [crates, setCrates] = useState([]);
+  const [unassignedCrates, setUnassignedCrates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -57,6 +58,10 @@ const BatchAddCratesPage = () => {
       // Fetch crates in the batch
       const cratesResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_CRATES(id)}`);
       setCrates(cratesResponse.data.crates || []);
+      
+      // Fetch unassigned crates
+      const unassignedResponse = await axios.get(`${API_URL}/crates/unassigned`);
+      setUnassignedCrates(unassignedResponse.data || []);
       
       setLoading(false);
     } catch (err) {
@@ -85,6 +90,28 @@ const BatchAddCratesPage = () => {
       
       // Show success message
       setSuccess(`Crate ${qrCode} added to batch successfully`);
+      
+      // Refresh crate list
+      fetchBatchData();
+    } catch (err) {
+      console.error('Error adding crate to batch:', err);
+      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      setLoading(false);
+    }
+  };
+  
+  // Handle adding an existing unassigned crate to the batch
+  const handleAddExistingCrate = async (crateId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+      
+      // Add crate to batch using the crate ID
+      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(id)}`, { crate_id: crateId });
+      
+      // Show success message
+      setSuccess(`Crate added to batch successfully`);
       
       // Refresh crate list
       fetchBatchData();
@@ -156,7 +183,7 @@ const BatchAddCratesPage = () => {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h4" component="h1">
-            Add Crates to Batch
+            Add Crates to Batch {batch?.batch_code ? `#${batch.batch_code}` : ''}
           </Typography>
         </Box>
         
@@ -205,7 +232,7 @@ const BatchAddCratesPage = () => {
             variant="contained"
             startIcon={<QrCodeIcon />}
             onClick={() => setScanning(true)}
-            disabled={batch?.status !== 'PENDING'}
+            disabled={batch?.status !== 'open'}
           >
             Scan QR Code
           </Button>
@@ -214,7 +241,7 @@ const BatchAddCratesPage = () => {
             variant="outlined"
             startIcon={<SearchIcon />}
             onClick={() => setManualEntry(true)}
-            disabled={batch?.status !== 'PENDING'}
+            disabled={batch?.status !== 'open'}
           >
             Enter QR Code Manually
           </Button>
@@ -222,7 +249,7 @@ const BatchAddCratesPage = () => {
       </Box>
       
       {/* Crates list */}
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: 2, mb: 4 }}>
         <Typography variant="h6" gutterBottom>
           Crates in Batch ({crates.length})
         </Typography>
@@ -249,7 +276,7 @@ const BatchAddCratesPage = () => {
                       </Typography>
                       <br />
                       <Typography component="span" variant="body2" color="textSecondary">
-                        Farm: {crate.farm_name || 'N/A'}
+                        Added: {formatDate(crate.created_at)}
                       </Typography>
                     </>
                   }
@@ -263,6 +290,56 @@ const BatchAddCratesPage = () => {
                       color: 'white'
                     }} 
                   />
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </Paper>
+      
+      {/* Unassigned Crates list */}
+      <Paper sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          Available Unassigned Crates ({unassignedCrates.length})
+        </Typography>
+        <Divider sx={{ mb: 2 }} />
+        
+        {unassignedCrates.length === 0 ? (
+          <Typography variant="body1" sx={{ py: 4, textAlign: 'center' }}>
+            No unassigned crates available.
+          </Typography>
+        ) : (
+          <List>
+            {unassignedCrates.map((crate) => (
+              <ListItem key={crate.id} divider>
+                <ListItemText
+                  primary={`QR Code: ${crate.qr_code}`}
+                  secondary={
+                    <>
+                      <Typography component="span" variant="body2" color="textPrimary">
+                        Weight: {crate.weight || 'N/A'} kg
+                      </Typography>
+                      <br />
+                      <Typography component="span" variant="body2" color="textSecondary">
+                        Variety: {crate.variety_name || 'N/A'}
+                      </Typography>
+                      <br />
+                      <Typography component="span" variant="body2" color="textSecondary">
+                        Farm: {crate.farm_name || 'N/A'}
+                      </Typography>
+                    </>
+                  }
+                />
+                <ListItemSecondaryAction>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    onClick={() => handleAddExistingCrate(crate.id)}
+                    disabled={batch?.status !== 'open'}
+                  >
+                    Add to Batch
+                  </Button>
                 </ListItemSecondaryAction>
               </ListItem>
             ))}
