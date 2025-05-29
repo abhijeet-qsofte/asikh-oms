@@ -971,7 +971,7 @@ async def get_batch_stats(
     }
 
 
-@router.post("/{batch_id}/crates", response_model=BatchResponse)
+@router.post("/{batch_id}/add-crate", response_model=BatchResponse)
 async def add_crate_to_batch(
     batch_id: uuid.UUID,
     crate_data: dict,
@@ -981,12 +981,14 @@ async def add_crate_to_batch(
     """
     Add a crate to a batch
     """
-    # Extract QR code from request body
+    # Extract QR code or crate_id from request body
     qr_code = crate_data.get('qr_code')
-    if not qr_code:
+    crate_id = crate_data.get('crate_id')
+    
+    if not qr_code and not crate_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="QR code is required"
+            detail="Either QR code or crate ID is required"
         )
         
     # Verify batch exists
@@ -1004,12 +1006,16 @@ async def add_crate_to_batch(
             detail=f"Cannot add crates to batch with status '{batch.status}'"
         )
     
-    # Find the crate
-    crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
+    # Find the crate by QR code or ID
+    if qr_code:
+        crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
+    else:
+        crate = db.query(Crate).filter(Crate.id == crate_id).first()
     if not crate:
+        error_detail = f"Crate with QR code {qr_code} not found" if qr_code else f"Crate with ID {crate_id} not found"
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Crate with QR code {qr_code} not found"
+            detail=error_detail
         )
     
     # Check if crate is already in a batch

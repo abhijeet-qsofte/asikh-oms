@@ -46,6 +46,8 @@ const BatchCreatePage = () => {
     notes: '',
     supervisor_id: '', // Must be a valid UUID
     from_location: '', // Must be a valid UUID (farm ID) - MANDATORY
+    transport_mode: null, // Now optional
+    to_location: null, // Now optional
     photo_url: '', // New field for photo capture
     latitude: null, // GPS latitude - mandatory
     longitude: null, // GPS longitude - mandatory
@@ -294,6 +296,9 @@ const BatchCreatePage = () => {
     // Prepare batch data
     const batchData = {
       ...formData,
+      // Ensure latitude and longitude are sent as numbers
+      latitude: parseFloat(formData.latitude),
+      longitude: parseFloat(formData.longitude)
     };
     
     const resultAction = await dispatch(createBatch(batchData));

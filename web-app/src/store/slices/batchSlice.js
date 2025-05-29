@@ -45,6 +45,20 @@ export const createBatch = createAsyncThunk(
   }
 );
 
+// Add crate to batch
+export const addCrateToBatch = createAsyncThunk(
+  'batches/addCrateToBatch',
+  async ({ batchId, crateData }, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(batchId)}`, crateData);
+      return response.data;
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Failed to add crate to batch';
+      return rejectWithValue(message);
+    }
+  }
+);
+
 // Update batch status
 export const updateBatchStatus = createAsyncThunk(
   'batches/updateBatchStatus',
@@ -178,6 +192,33 @@ const batchSlice = createSlice({
       // Get batch weight details
       .addCase(getBatchWeightDetails.fulfilled, (state, action) => {
         state.weightDetails[action.payload.id] = action.payload.weightDetails;
+      })
+      
+      // Add crate to batch
+      .addCase(addCrateToBatch.pending, (state) => {
+        state.updateLoading = true;
+        state.updateError = null;
+      })
+      .addCase(addCrateToBatch.fulfilled, (state, action) => {
+        state.updateLoading = false;
+        
+        // Update current batch with the updated batch data
+        if (state.currentBatch && state.currentBatch.id === action.payload.id) {
+          state.currentBatch = action.payload;
+        }
+        
+        // Update in batches array
+        const index = state.batches.findIndex((batch) => batch.id === action.payload.id);
+        if (index !== -1) {
+          state.batches[index] = action.payload;
+        }
+        
+        toast.success('Crate added to batch successfully');
+      })
+      .addCase(addCrateToBatch.rejected, (state, action) => {
+        state.updateLoading = false;
+        state.updateError = action.payload;
+        toast.error(action.payload);
       });
   },
 });
