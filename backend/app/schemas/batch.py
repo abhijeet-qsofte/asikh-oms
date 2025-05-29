@@ -81,8 +81,8 @@ class BatchResponse(BaseModel):
     status: str
     total_crates: int
     photo_url: Optional[str] = None
-    latitude: float
-    longitude: float
+    latitude: float = 0.0
+    longitude: float = 0.0
     notes: Optional[str] = None
     created_at: datetime
     reconciliation_status: Optional[str] = None
