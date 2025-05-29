@@ -13,13 +13,13 @@ load_dotenv()
 
 # Import models here
 from app.models.user import User
-#from app.models.qr_code import QRCode
-#from app.models.farm import Farm
-#from app.models.packhouse import Packhouse
-#from app.models.variety import Variety
-#from app.models.batch import Batch
-#from app.models.crate import Crate
-#from app.models.reconciliation import ReconciliationLog, AuditLog
+from app.models.qr_code import QRCode
+from app.models.farm import Farm
+from app.models.packhouse import Packhouse
+from app.models.variety import Variety
+from app.models.batch import Batch
+from app.models.crate import Crate
+from app.models.reconciliation import ReconciliationLog, AuditLog
 from app.core.database import Base
 from app.core.config import settings
 

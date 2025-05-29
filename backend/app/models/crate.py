@@ -14,7 +14,7 @@ class Crate(Base):
         # Partitioning removed: allow all harvest_date values in this table
     )
     
-    id = Column(UUID(as_uuid=True), default=uuid.uuid4, nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     qr_code = Column(String(100), ForeignKey("qr_codes.code_value"), index=True, nullable=False)
     harvest_date = Column(DateTime, primary_key=True, default=func.now(), nullable=False, index=True)
     gps_location = Column(JSONB, nullable=True)
