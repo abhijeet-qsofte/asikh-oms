@@ -58,7 +58,7 @@ export const ENDPOINTS = {
   CRATE_BY_QR: (qrCode) => `${API_VERSION}/crates/qr/${qrCode}`,
   CRATE_ASSIGN_BATCH: `${API_VERSION}/crates/assign-batch`,
   CRATE_SEARCH: `${API_VERSION}/crates/search`,
-  CRATES_UNASSIGNED: `${API_VERSION}/crates/list-unassigned`,
+  CRATES_UNASSIGNED: `${API_VERSION}/crates/get-unassigned-crates`,
   
   // Batch Management
   BATCHES: `${API_VERSION}/batches`,

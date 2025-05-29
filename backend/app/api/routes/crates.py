@@ -166,6 +166,67 @@ async def create_crate(
     return response
 
 
+@router.get("/get-unassigned-crates", response_model=List[CrateResponse])
+async def get_unassigned_crates(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(get_user)
+):
+    """
+    Get all crates that are not assigned to any batch
+    """
+    # Query crates that don't have a batch_id
+    query = db.query(Crate).filter(Crate.batch_id == None)
+    
+    # Apply pagination
+    total_items = query.count()
+    query = query.offset((page - 1) * page_size).limit(page_size)
+    
+    # Get results
+    crates = query.all()
+    
+    # Prepare response
+    result = []
+    for crate in crates:
+        # Get variety name if available
+        variety_name = None
+        if crate.variety_id:
+            variety = db.query(Variety).filter(Variety.id == crate.variety_id).first()
+            if variety:
+                variety_name = variety.name
+        
+        # Get farm name if available
+        farm_name = None
+        if crate.farm_id:
+            farm = db.query(Farm).filter(Farm.id == crate.farm_id).first()
+            if farm:
+                farm_name = farm.name
+        
+        # Create response object
+        crate_response = CrateResponse(
+            id=crate.id,
+            qr_code=crate.qr_code,
+            harvest_date=crate.harvest_date,
+            weight=crate.weight,
+            variety_id=crate.variety_id,
+            variety_name=variety_name,
+            farm_id=crate.farm_id,
+            farm_name=farm_name,
+            supervisor_id=crate.supervisor_id,
+            supervisor_name=crate.supervisor_name,
+            quality_grade=crate.quality_grade,
+            photo_url=crate.photo_url,
+            notes=crate.notes,
+            batch_id=None,
+            created_at=crate.created_at,
+            updated_at=crate.updated_at
+        )
+        result.append(crate_response)
+    
+    return result
+
+
 @router.get("/{crate_id}", response_model=CrateResponse)
 async def get_crate(
     crate_id: uuid.UUID,
@@ -648,64 +709,3 @@ def update_crate_with_placeholder(crate_qr: str, db_session: Session):
             logger.info(f"Updated crate {crate_qr} with placeholder image")
     except Exception as e:
         logger.error(f"Error updating crate with placeholder: {str(e)}")
-
-
-@router.get("/list-unassigned", response_model=List[CrateResponse])
-async def get_unassigned_crates(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db_dependency),
-    current_user: User = Depends(get_user)
-):
-    """
-    Get all crates that are not assigned to any batch
-    """
-    # Query crates that don't have a batch_id
-    query = db.query(Crate).filter(Crate.batch_id == None)
-    
-    # Apply pagination
-    total_items = query.count()
-    query = query.offset((page - 1) * page_size).limit(page_size)
-    
-    # Get results
-    crates = query.all()
-    
-    # Prepare response
-    result = []
-    for crate in crates:
-        # Get variety name if available
-        variety_name = None
-        if crate.variety_id:
-            variety = db.query(Variety).filter(Variety.id == crate.variety_id).first()
-            if variety:
-                variety_name = variety.name
-        
-        # Get farm name if available
-        farm_name = None
-        if crate.farm_id:
-            farm = db.query(Farm).filter(Farm.id == crate.farm_id).first()
-            if farm:
-                farm_name = farm.name
-        
-        # Create response object
-        crate_response = CrateResponse(
-            id=crate.id,
-            qr_code=crate.qr_code,
-            harvest_date=crate.harvest_date,
-            weight=crate.weight,
-            variety_id=crate.variety_id,
-            variety_name=variety_name,
-            farm_id=crate.farm_id,
-            farm_name=farm_name,
-            supervisor_id=crate.supervisor_id,
-            supervisor_name=crate.supervisor_name,
-            quality_grade=crate.quality_grade,
-            photo_url=crate.photo_url,
-            notes=crate.notes,
-            batch_id=None,
-            created_at=crate.created_at,
-            updated_at=crate.updated_at
-        )
-        result.append(crate_response)
-    
-    return result
