@@ -178,7 +178,7 @@ async def create_batch(
                 detail=f"Supervisor with ID {batch_data.supervisor_id} not found"
             )
         
-        # Verify the farm exists
+        # Verify the farm exists - this is mandatory
         farm = db.query(Farm).filter(Farm.id == batch_data.from_location).first()
         if not farm:
             raise HTTPException(
@@ -186,13 +186,15 @@ async def create_batch(
                 detail=f"Farm with ID {batch_data.from_location} not found"
             )
         
-        # Verify the packhouse exists
-        packhouse = db.query(Packhouse).filter(Packhouse.id == batch_data.to_location).first()
-        if not packhouse:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Packhouse with ID {batch_data.to_location} not found"
-            )
+        # Verify the packhouse exists if provided
+        packhouse = None
+        if batch_data.to_location:
+            packhouse = db.query(Packhouse).filter(Packhouse.id == batch_data.to_location).first()
+            if not packhouse:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Packhouse with ID {batch_data.to_location} not found"
+                )
         
         # Generate batch code if not provided
         if not batch_data.batch_code:
@@ -229,16 +231,17 @@ async def create_batch(
         new_batch = Batch(
             batch_code=batch_code,
             supervisor_id=batch_data.supervisor_id,
-            transport_mode=batch_data.transport_mode,
             from_location=batch_data.from_location,
+            transport_mode=batch_data.transport_mode,
             to_location=batch_data.to_location,
             vehicle_number=batch_data.vehicle_number,
             driver_name=batch_data.driver_name,
             eta=batch_data.eta,
+            photo_url=batch_data.photo_url,
             notes=batch_data.notes,
             status="open",
             total_crates=0,
-            total_weight=0
+            total_weight=0  # Initialize with zero, will be calculated as crates are added
         )
         
         db.add(new_batch)
@@ -667,6 +670,19 @@ async def mark_batch_departed(
             detail=f"Cannot mark departure for batch with status '{batch.status}'"
         )
     
+    # Check if required fields for dispatch are present
+    if not batch.transport_mode:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Transport mode is required to dispatch a batch"
+        )
+    
+    if not batch.to_location:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Destination (to_location) is required to dispatch a batch"
+        )
+    
     # Update batch
     batch.status = "in_transit"
     batch.departure_time = datetime.utcnow()
@@ -939,7 +955,8 @@ async def get_batch_stats(
         "reconciliation_percentage": reconciliation_percentage,
         "is_fully_reconciled": is_fully_reconciled,
         "variety_distribution": variety_distribution,
-        "grade_distribution": grade_distribution
+        "grade_distribution": grade_distribution,
+        "photo_url": batch.photo_url
     }
 
 

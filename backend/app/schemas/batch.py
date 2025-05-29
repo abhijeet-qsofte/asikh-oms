@@ -8,19 +8,21 @@ import uuid
 class BatchBase(BaseModel):
     """Base schema for batch data"""
     supervisor_id: uuid.UUID
-    transport_mode: str
-    from_location: uuid.UUID
-    to_location: uuid.UUID
+    from_location: uuid.UUID  # Only farm (from_location) is mandatory
+    transport_mode: Optional[str] = None
+    to_location: Optional[uuid.UUID] = None
     vehicle_number: Optional[str] = None
     driver_name: Optional[str] = None
     eta: Optional[datetime] = None
+    photo_url: Optional[str] = None  # Added photo_url field
     notes: Optional[str] = None
     
     @validator('transport_mode')
     def validate_transport(cls, v):
-        valid_modes = ['truck', 'van', 'bicycle', 'motorbike', 'other']
-        if v not in valid_modes:
-            raise ValueError(f'Transport mode must be one of {valid_modes}')
+        if v is not None:
+            valid_modes = ['truck', 'van', 'bicycle', 'motorbike', 'other']
+            if v not in valid_modes:
+                raise ValueError(f'Transport mode must be one of {valid_modes}')
         return v
 
 
@@ -64,11 +66,11 @@ class BatchResponse(BaseModel):
     batch_code: str
     supervisor_id: uuid.UUID
     supervisor_name: str  # Included from relationship
-    transport_mode: str
     from_location: uuid.UUID
     from_location_name: str  # Farm name from relationship
-    to_location: uuid.UUID
-    to_location_name: str  # Packhouse name from relationship
+    transport_mode: Optional[str] = None
+    to_location: Optional[uuid.UUID] = None
+    to_location_name: Optional[str] = None  # Packhouse name from relationship
     vehicle_number: Optional[str] = None
     driver_name: Optional[str] = None
     eta: Optional[datetime] = None
@@ -76,7 +78,7 @@ class BatchResponse(BaseModel):
     arrival_time: Optional[datetime] = None
     status: str
     total_crates: int
-    total_weight: float
+    photo_url: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
     reconciliation_status: Optional[str] = None
@@ -111,10 +113,10 @@ class BatchInfoSummary(BaseModel):
     batch_code: str
     status: str
     from_location_name: str
-    to_location_name: str
+    to_location_name: Optional[str] = None
     supervisor_name: str
     total_crates: int
-    total_weight: float
+    photo_url: Optional[str] = None
 
 
 class BatchCrateList(BaseModel):
@@ -134,7 +136,7 @@ class BatchStatsResponse(BaseModel):
     created_at: datetime
     supervisor_name: str
     from_location_name: str
-    to_location_name: str
+    to_location_name: Optional[str] = None
     departure_time: Optional[datetime] = None
     arrival_time: Optional[datetime] = None
     transit_time_minutes: Optional[float] = None
@@ -143,5 +145,6 @@ class BatchStatsResponse(BaseModel):
     reconciled_crates: int
     reconciliation_percentage: float
     is_fully_reconciled: bool
-    variety_distribution: Dict[str, int]  # variety name -> count
-    grade_distribution: Dict[str, int]  # grade -> count
+    variety_distribution: Dict[str, int]
+    grade_distribution: Dict[str, int]
+    photo_url: Optional[str] = None

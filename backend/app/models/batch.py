@@ -12,9 +12,9 @@ class Batch(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     batch_code = Column(String(100), unique=True, index=True, nullable=False)
     supervisor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    transport_mode = Column(String(50), nullable=False)
+    transport_mode = Column(String(50), nullable=True)  # Made nullable
     from_location = Column(UUID(as_uuid=True), ForeignKey("farms.id"), nullable=False)
-    to_location = Column(UUID(as_uuid=True), ForeignKey("packhouses.id"), nullable=False)
+    to_location = Column(UUID(as_uuid=True), ForeignKey("packhouses.id"), nullable=True)  # Made nullable
     vehicle_number = Column(String(50), nullable=True)
     driver_name = Column(String(100), nullable=True)
     eta = Column(DateTime, nullable=True)
@@ -22,7 +22,8 @@ class Batch(Base):
     arrival_time = Column(DateTime, nullable=True)
     status = Column(String(50), default="open")
     total_crates = Column(Integer, default=0)
-    total_weight = Column(Float, default=0)
+    photo_url = Column(String, nullable=True)
+    total_weight = Column(Float, default=0)  # Added photo field
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
