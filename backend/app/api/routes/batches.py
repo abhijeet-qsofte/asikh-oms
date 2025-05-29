@@ -262,7 +262,7 @@ async def create_batch(
             "from_location": new_batch.from_location,
             "from_location_name": farm.name,
             "to_location": new_batch.to_location,
-            "to_location_name": packhouse.name,
+            "to_location_name": packhouse.name if packhouse else None,
             "vehicle_number": new_batch.vehicle_number,
             "driver_name": new_batch.driver_name,
             "eta": new_batch.eta,
