@@ -15,6 +15,8 @@ class BatchBase(BaseModel):
     driver_name: Optional[str] = None
     eta: Optional[datetime] = None
     photo_url: Optional[str] = None  # Added photo_url field
+    latitude: float  # GPS latitude - mandatory
+    longitude: float  # GPS longitude - mandatory
     notes: Optional[str] = None
     
     @validator('transport_mode')
@@ -79,6 +81,8 @@ class BatchResponse(BaseModel):
     status: str
     total_crates: int
     photo_url: Optional[str] = None
+    latitude: float
+    longitude: float
     notes: Optional[str] = None
     created_at: datetime
     reconciliation_status: Optional[str] = None
@@ -148,3 +152,5 @@ class BatchStatsResponse(BaseModel):
     variety_distribution: Dict[str, int]
     grade_distribution: Dict[str, int]
     photo_url: Optional[str] = None
+    latitude: float
+    longitude: float

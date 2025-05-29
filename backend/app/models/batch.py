@@ -23,7 +23,9 @@ class Batch(Base):
     status = Column(String(50), default="open")
     total_crates = Column(Integer, default=0)
     photo_url = Column(String, nullable=True)
-    total_weight = Column(Float, default=0)  # Added photo field
+    latitude = Column(Float, nullable=False)  # GPS latitude
+    longitude = Column(Float, nullable=False)  # GPS longitude
+    total_weight = Column(Float, default=0)
     notes = Column(String, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
