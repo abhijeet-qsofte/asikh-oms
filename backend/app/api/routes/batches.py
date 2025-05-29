@@ -502,6 +502,9 @@ async def list_batches(
             "weight_differential": weight_differential,
             "weight_loss_percentage": weight_loss_percentage,
             "reconciliation_status": reconciliation_status,
+            "photo_url": batch.photo_url,
+            "latitude": batch.latitude if hasattr(batch, 'latitude') else 0.0,
+            "longitude": batch.longitude if hasattr(batch, 'longitude') else 0.0,
             "notes": batch.notes,
             "created_at": batch.created_at
         })
