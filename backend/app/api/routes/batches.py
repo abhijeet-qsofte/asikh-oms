@@ -326,6 +326,9 @@ async def get_batch(
         "status": batch.status,
         "total_crates": batch.total_crates,
         "total_weight": batch.total_weight,
+        "photo_url": batch.photo_url,
+        "latitude": batch.latitude if hasattr(batch, "latitude") else 0.0,
+        "longitude": batch.longitude if hasattr(batch, "longitude") else 0.0,
         "notes": batch.notes,
         "created_at": batch.created_at
     }
@@ -369,6 +372,9 @@ async def get_batch_by_code(
         "status": batch.status,
         "total_crates": batch.total_crates,
         "total_weight": batch.total_weight,
+        "photo_url": batch.photo_url,
+        "latitude": batch.latitude if hasattr(batch, "latitude") else 0.0,
+        "longitude": batch.longitude if hasattr(batch, "longitude") else 0.0,
         "notes": batch.notes,
         "created_at": batch.created_at
     }
@@ -502,9 +508,6 @@ async def list_batches(
             "weight_differential": weight_differential,
             "weight_loss_percentage": weight_loss_percentage,
             "reconciliation_status": reconciliation_status,
-            "photo_url": batch.photo_url,
-            "latitude": batch.latitude if hasattr(batch, 'latitude') else 0.0,
-            "longitude": batch.longitude if hasattr(batch, 'longitude') else 0.0,
             "notes": batch.notes,
             "created_at": batch.created_at
         })
