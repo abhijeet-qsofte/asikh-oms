@@ -21,6 +21,7 @@ from app.models.crate import Crate
 from app.models.qr_code import QRCode
 from app.models.variety import Variety
 from app.models.batch import Batch
+from app.models.farm import Farm
 from app.schemas.crate import (
     CrateCreate,
     CrateUpdate,
@@ -83,6 +84,16 @@ async def create_crate(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Variety with ID {crate_data.variety_id} not found"
         )
+        
+    # Verify that farm exists if farm_id is provided
+    farm = None
+    if crate_data.farm_id:
+        farm = db.query(Farm).filter(Farm.id == crate_data.farm_id).first()
+        if not farm:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Farm with ID {crate_data.farm_id} not found"
+            )
 
     # Process photo if provided - SIMPLIFIED APPROACH
     photo_url = None
@@ -118,6 +129,7 @@ async def create_crate(
         weight=crate_data.weight,
         notes=crate_data.notes,
         variety_id=crate_data.variety_id,
+        farm_id=crate_data.farm_id,
         quality_grade=crate_data.quality_grade
     )
     
@@ -129,23 +141,25 @@ async def create_crate(
     qr_code.status = "used"
     db.commit()
     
-    # Prepare response with additional data
-    response = CrateResponse(
-        id=new_crate.id,
-        qr_code=new_crate.qr_code,
-        harvest_date=new_crate.harvest_date,
-        gps_location=crate_data.gps_location,
-        photo_url=new_crate.photo_url,
-        supervisor_id=new_crate.supervisor_id,
-        supervisor_name=supervisor.full_name or supervisor.username,
-        weight=new_crate.weight,
-        notes=new_crate.notes,
-        variety_id=new_crate.variety_id,
-        variety_name=variety.name,
-        batch_id=None,
-        batch_code=None,
-        quality_grade=new_crate.quality_grade
-    )
+    # Return the created crate with additional information
+    return {
+        "id": new_crate.id,
+        "qr_code": new_crate.qr_code,
+        "harvest_date": new_crate.harvest_date,
+        "gps_location": crate_data.gps_location,
+        "photo_url": new_crate.photo_url,
+        "supervisor_id": new_crate.supervisor_id,
+        "supervisor_name": supervisor.full_name or supervisor.username,
+        "weight": new_crate.weight,
+        "notes": new_crate.notes,
+        "variety_id": new_crate.variety_id,
+        "variety_name": variety.name,
+        "farm_id": new_crate.farm_id,
+        "farm_name": farm.name if farm else None,
+        "batch_id": None,
+        "batch_code": None,
+        "quality_grade": new_crate.quality_grade
+    }
     
     logger.info(f"Crate created with QR code {crate_data.qr_code} by user {current_user.username}")
     

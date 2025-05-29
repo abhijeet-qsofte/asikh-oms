@@ -19,6 +19,7 @@ class Farm(Base):
     
     # Relationships
     batches = relationship("Batch", back_populates="from_location_obj", foreign_keys="Batch.from_location")
+    crates = relationship("Crate", back_populates="farm")
     
     def __repr__(self):
         return f"<Farm {self.name}>"

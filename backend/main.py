@@ -66,8 +66,11 @@ async def lifespan(app: FastAPI):
         # Create tables if they don't exist
         Base.metadata.create_all(bind=engine)
         
-        # Run migration to add weight differential columns
+        # Run migrations
         try:
+            logger.info("Running database migrations")
+            
+            # 1. Migration to add weight differential columns
             logger.info("Running migration to add weight differential columns to crate_reconciliations table")
             from sqlalchemy import text, inspect
             
@@ -114,6 +117,59 @@ async def lifespan(app: FastAPI):
                     raise
                 
                 logger.info("Weight differential columns migration completed successfully")
+                
+            # 2. Migration to add farm_id column to crates table
+            logger.info("Running migration to add farm_id column to crates table")
+            
+            # Check if crates table exists
+            if 'crates' not in inspector.get_table_names():
+                logger.warning("crates table does not exist yet, will be created with the farm_id column")
+            else:
+                # Check if column already exists
+                crate_columns = [c['name'] for c in inspector.get_columns('crates')]
+                logger.info(f"Existing columns in crates: {crate_columns}")
+                
+                # Add column if it doesn't exist
+                with engine.begin() as conn:
+                    if 'farm_id' not in crate_columns:
+                        logger.info("Adding farm_id column to crates table")
+                        conn.execute(text("ALTER TABLE crates ADD COLUMN farm_id UUID"))
+                        
+                        # Add foreign key constraint
+                        logger.info("Adding foreign key constraint for farm_id")
+                        conn.execute(text("""
+                            DO $$
+                            BEGIN
+                                IF NOT EXISTS (
+                                    SELECT 1 FROM pg_constraint WHERE conname = 'fk_crates_farm_id'
+                                ) THEN
+                                    ALTER TABLE crates 
+                                    ADD CONSTRAINT fk_crates_farm_id 
+                                    FOREIGN KEY (farm_id) 
+                                    REFERENCES farms(id);
+                                END IF;
+                            END
+                            $$;
+                        """))
+                        
+                        logger.info("Successfully added farm_id column with foreign key constraint")
+                    else:
+                        logger.info("farm_id column already exists")
+                
+                # Verify column was added successfully
+                updated_crate_columns = [c['name'] for c in inspector.get_columns('crates')]
+                if 'farm_id' not in updated_crate_columns:
+                    logger.warning("Migration may not have completed successfully. farm_id column is missing.")
+                else:
+                    logger.info("Farm ID migration completed successfully.")
+                    
+                # Run a simple query to verify the column works
+                try:
+                    result = conn.execute(text("SELECT COUNT(*) FROM crates WHERE farm_id IS NOT NULL")).scalar()
+                    logger.info(f"Verified farm_id column: {result} crates have farm_id set")
+                except Exception as e:
+                    logger.error(f"Error accessing crates table farm_id column: {str(e)}")
+                    # Don't raise exception here, continue with startup
         except Exception as e:
             import traceback
             error_traceback = traceback.format_exc()

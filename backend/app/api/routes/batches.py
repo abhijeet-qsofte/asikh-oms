@@ -19,6 +19,24 @@ from app.models.batch import Batch
 from app.models.crate import Crate
 from app.models.farm import Farm
 from app.models.packhouse import Packhouse
+
+# Define valid batch status transitions
+VALID_BATCH_TRANSITIONS = {
+    "open": ["in_transit", "arrived"],
+    "in_transit": ["arrived"],
+    "arrived": ["delivered"],
+    "delivered": ["closed"],
+    "closed": []
+}
+
+# Helper function to validate batch status transitions
+def validate_batch_transition(current_status, new_status):
+    """Validate if a batch status transition is allowed"""
+    if new_status not in VALID_BATCH_TRANSITIONS.get(current_status, []):
+        allowed = VALID_BATCH_TRANSITIONS.get(current_status, [])
+        allowed_str = ", ".join(allowed) if allowed else "none"
+        return False, f"Cannot transition batch from '{current_status}' to '{new_status}'. Allowed transitions: {allowed_str}"
+    return True, ""
 from app.models.reconciliation import ReconciliationLog, CrateReconciliation
 from app.models.variety import Variety
 from collections import defaultdict
@@ -546,29 +564,38 @@ async def update_batch(
                 batch.status = "delivered"
         
         if batch_data.status is not None:
-            # Validate status transitions
+            # Validate status transitions using the helper function
+            is_valid, error_message = validate_batch_transition(batch.status, batch_data.status)
+            if not is_valid:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=error_message
+                )
+            
+            # Handle automatic timestamp updates
             if batch_data.status == "in_transit" and batch.status == "open":
                 if batch.departure_time is None:
                     batch.departure_time = datetime.utcnow()
             
-            if batch_data.status == "delivered" and batch.status in ["open", "in_transit"]:
+            if batch_data.status == "arrived" and batch.status in ["open", "in_transit"]:
                 if batch.arrival_time is None:
                     batch.arrival_time = datetime.utcnow()
             
-            # Special case for reconciled - only admin or appropriate role can set this
-            if batch_data.status == "reconciled" and current_user.role not in ["admin", "packhouse"]:
+            # Role-based permissions for status changes
+            if batch_data.status == "delivered" and current_user.role not in ["admin", "packhouse", "manager"]:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only admins or packhouse users can mark a batch as reconciled"
+                    detail="Only admins, packhouse users, or managers can mark a batch as delivered"
                 )
             
-            # Special case for closed - only admin can close a batch
-            if batch_data.status == "closed" and current_user.role != "admin":
+            # Special case for closed - only admin or packhouse can close a batch
+            if batch_data.status == "closed" and current_user.role not in ["admin", "packhouse"]:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only admins can close a batch"
+                    detail="Only admins or packhouse users can close a batch"
                 )
             
+            # Update the status
             batch.status = batch_data.status
         
         if batch_data.notes is not None:
@@ -973,6 +1000,11 @@ async def add_crate_to_batch(
     # Add crate to batch
     crate.batch_id = batch_id
     
+    # Set farm_id on crate if not already set
+    if crate.farm_id is None:
+        crate.farm_id = batch.from_location
+        logger.info(f"Farm ID {batch.from_location} set on crate {crate.qr_code} from batch {batch.batch_code}")
+    
     # Update batch statistics
     batch.total_crates += 1
     batch.total_weight += crate.weight
@@ -1335,10 +1367,11 @@ async def mark_batch_delivered(
             )
         
         # Check if batch is in valid state for marking as delivered
-        if batch.status != "arrived":
+        is_valid, error_message = validate_batch_transition(batch.status, "delivered")
+        if not is_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot mark batch as delivered with status '{batch.status}'. Batch must be in 'arrived' status."
+                detail=error_message
             )
         
         # Get reconciliation stats
@@ -1398,10 +1431,11 @@ async def close_batch(
             )
         
         # Check if batch is in valid state for closing
-        if batch.status != "delivered":
+        is_valid, error_message = validate_batch_transition(batch.status, "closed")
+        if not is_valid:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot close batch with status '{batch.status}'. Batch must be delivered."
+                detail=error_message
             )
         
         # Close the batch

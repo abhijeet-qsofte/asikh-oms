@@ -30,6 +30,7 @@ class CrateBase(BaseModel):
     weight: float = Field(..., gt=0, description="Weight in kg")
     supervisor_id: uuid.UUID
     variety_id: uuid.UUID
+    farm_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     quality_grade: Optional[str] = Field(None, description="Quality grade (A, B, C, reject)")
     
@@ -92,6 +93,8 @@ class CrateResponse(BaseModel):
     notes: Optional[str] = None
     variety_id: uuid.UUID
     variety_name: str  # Included from relationship
+    farm_id: Optional[uuid.UUID] = None
+    farm_name: Optional[str] = None  # Included from relationship if farm exists
     batch_id: Optional[uuid.UUID] = None
     batch_code: Optional[str] = None  # Included from relationship if batch exists
     quality_grade: Optional[str] = None

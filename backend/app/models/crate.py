@@ -24,6 +24,7 @@ class Crate(Base):
     notes = Column(Text, nullable=True)
     variety_id = Column(UUID(as_uuid=True), ForeignKey("varieties.id"), nullable=False)
     batch_id = Column(UUID(as_uuid=True), ForeignKey("batches.id"), nullable=True)
+    farm_id = Column(UUID(as_uuid=True), ForeignKey("farms.id"), nullable=True)
     quality_grade = Column(String(10), nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -33,6 +34,7 @@ class Crate(Base):
     supervisor_user = relationship("User", back_populates="crates_supervised", foreign_keys=[supervisor_id])
     variety_obj = relationship("Variety", back_populates="crates")
     batch = relationship("Batch", back_populates="crates")
+    farm = relationship("Farm", back_populates="crates")
     reconciliation_logs = relationship("ReconciliationLog", back_populates="crate")
     
     def __repr__(self):
