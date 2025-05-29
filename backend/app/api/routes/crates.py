@@ -650,7 +650,7 @@ def update_crate_with_placeholder(crate_qr: str, db_session: Session):
         logger.error(f"Error updating crate with placeholder: {str(e)}")
 
 
-@router.get("/unassigned", response_model=List[CrateResponse])
+@router.get("/list-unassigned", response_model=List[CrateResponse])
 async def get_unassigned_crates(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
