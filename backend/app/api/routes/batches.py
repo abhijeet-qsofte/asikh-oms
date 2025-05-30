@@ -19,6 +19,7 @@ from app.models.batch import Batch
 from app.models.crate import Crate
 from app.models.farm import Farm
 from app.models.packhouse import Packhouse
+from app.models.qr_code import QRCode
 
 # Define valid batch status transitions
 VALID_BATCH_TRANSITIONS = {
@@ -1088,16 +1089,31 @@ async def add_minimal_crate_to_batch(
                 detail=f"Cannot add crates to batch with status '{batch.status}'"
             )
         
-        # Check if QR code exists
-        qr_code = crate_data.qr_code
-        crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
+        # Check if QR code exists in qr_codes table
+        qr_code_value = crate_data.qr_code
+        qr_code_obj = db.query(QRCode).filter(QRCode.code_value == qr_code_value).first()
+        
+        # If QR code doesn't exist in qr_codes table, create it
+        if not qr_code_obj:
+            logger.info(f"QR code {qr_code_value} not found in qr_codes table, creating it")
+            qr_code_obj = QRCode(
+                code_value=qr_code_value,
+                status="active",
+                entity_type="crate"
+            )
+            db.add(qr_code_obj)
+            db.flush()  # Flush to get the ID without committing
+            logger.info(f"Created new QR code entry: {qr_code_value}")
+        
+        # Check if crate exists
+        crate = db.query(Crate).filter(Crate.qr_code == qr_code_value).first()
         
         # If crate doesn't exist, create it
         if not crate:
-            logger.info(f"Creating new crate with QR code {qr_code}")
+            logger.info(f"Creating new crate with QR code {qr_code_value}")
             # Create new crate with minimal information
             crate = Crate(
-                qr_code=qr_code,
+                qr_code=qr_code_value,
                 variety_id=crate_data.variety_id,
                 weight=crate_data.weight or 1.0,  # Will default to 1.0 if not provided
                 supervisor_id=crate_data.supervisor_id or current_user.id,
@@ -1107,9 +1123,9 @@ async def add_minimal_crate_to_batch(
             # Set batch_id after creating the crate
             crate.batch_id = batch_id
             db.add(crate)
-            logger.info(f"New crate created with QR code {qr_code} and added to batch {batch.batch_code}")
+            logger.info(f"New crate created with QR code {qr_code_value} and added to batch {batch.batch_code}")
         else:
-            logger.info(f"Found existing crate with QR code {qr_code}")
+            logger.info(f"Found existing crate with QR code {qr_code_value}")
             # Check if crate is already in a batch
             if crate.batch_id is not None:
                 # If already in this batch, return success
@@ -1134,7 +1150,7 @@ async def add_minimal_crate_to_batch(
             if crate_data.notes:
                 crate.notes = crate_data.notes
             crate.batch_id = batch_id
-            logger.info(f"Existing crate with QR code {qr_code} updated and added to batch {batch.batch_code}")
+            logger.info(f"Existing crate with QR code {qr_code_value} updated and added to batch {batch.batch_code}")
         
         # Update batch statistics
         batch.total_crates += 1
@@ -1142,7 +1158,7 @@ async def add_minimal_crate_to_batch(
         
         db.commit()
         
-        logger.info(f"Minimal crate {qr_code} added to batch {batch.batch_code} by user {current_user.username}")
+        logger.info(f"Minimal crate {qr_code_value} added to batch {batch.batch_code} by user {current_user.username}")
         
         # Return updated batch
         return await get_batch(batch_id, db, current_user)
