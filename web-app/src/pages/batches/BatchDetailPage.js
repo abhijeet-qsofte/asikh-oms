@@ -710,13 +710,16 @@ const BatchDetailPage = () => {
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {batch.status === 'open' && (
             <>
+              {/* Dispatch button temporarily disabled */}
               <Button
                 variant="contained"
                 color="primary"
                 startIcon={<LocalShippingIcon />}
                 onClick={handleDispatch}
+                disabled={true}
+                sx={{ opacity: 0.6 }}
               >
-                Dispatch
+                Dispatch (Disabled)
               </Button>
               <Button
                 variant="contained"
