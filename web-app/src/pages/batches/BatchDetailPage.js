@@ -326,10 +326,42 @@ const BatchDetailPage = () => {
         eta: new Date(dispatchData.eta).toISOString()
       };
       
+      // Log the request details for debugging
+      let url = `${API_URL}${ENDPOINTS.BATCH_DISPATCH(batch.id)}`;
+      console.log('Original dispatch request URL:', url);
+      
+      // Try alternative endpoints for debugging
+      // Uncomment one of these to test alternative endpoints
+      // url = `${API_URL}/api/batches/direct/${batch.id}/dispatch`;
+      // url = `${API_URL}/api/batches/test-dispatch/${batch.id}`;
+      
+      // Test the simple test endpoint first
+      console.log('Testing simple endpoint first...');
+      try {
+        const testResponse = await fetch(`${API_URL}/api/batches/test`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          }
+        });
+        console.log('Test endpoint response:', testResponse.status);
+        if (testResponse.ok) {
+          const testData = await testResponse.json();
+          console.log('Test endpoint data:', testData);
+        }
+      } catch (testErr) {
+        console.error('Test endpoint error:', testErr);
+      }
+      
+      console.log('Now trying dispatch with URL:', url);
+      console.log('Dispatch request data:', formattedData);
+      console.log('Dispatch request method:', 'POST');
+      
       const response = await fetch(
-        `${API_URL}${ENDPOINTS.BATCH_DISPATCH(batch.id)}`,
+        url,
         {
-          method: 'POST',
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -337,6 +369,8 @@ const BatchDetailPage = () => {
           body: JSON.stringify(formattedData),
         }
       );
+      
+      console.log('Dispatch response status:', response.status);
       
       if (!response.ok) {
         const errorData = await response.json();

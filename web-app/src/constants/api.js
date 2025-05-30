@@ -64,7 +64,7 @@ export const ENDPOINTS = {
   BATCHES: `${API_VERSION}/batches/`,
   BATCH_DETAIL: (id) => `${API_VERSION}/batches/${id}`,
   BATCH_BY_CODE: (code) => `${API_VERSION}/batches/code/${code}`,
-  BATCH_DISPATCH: (id) => `${API_VERSION}/batches/${id}/dispatch`,
+  BATCH_DISPATCH: (id) => `${API_VERSION}/batches/${id}/depart`,
   BATCH_DEPART: (id) => `${API_VERSION}/batches/${id}/depart`,
   BATCH_ARRIVE: (id) => `${API_VERSION}/batches/${id}/arrive`,
   BATCH_CRATES: (id) => `${API_VERSION}/batches/${id}/crates`,

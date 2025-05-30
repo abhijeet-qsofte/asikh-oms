@@ -670,41 +670,97 @@ async def update_batch(
 @router.patch("/{batch_id}/depart", response_model=BatchResponse)
 async def mark_batch_departed(
     batch_id: uuid.UUID,
+    dispatch_data: dict = None,
     db: Session = Depends(get_db_dependency),
     current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
-    Mark a batch as departed (in_transit)
+    Mark a batch as departed (in_transit) or dispatched based on the request
     """
+    logger.info(f"Depart/dispatch endpoint called for batch {batch_id}")
+    if dispatch_data:
+        logger.info(f"Dispatch data provided: {dispatch_data}")
+    
     batch = db.query(Batch).filter(Batch.id == batch_id).first()
     if not batch:
+        logger.error(f"Batch with ID {batch_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Batch not found"
+            detail=f"Batch with ID {batch_id} not found"
         )
-
-    if batch.status != "open":
+    
+    logger.info(f"Found batch {batch_id}, current status: {batch.status}")
+    
+    # Check if this is a dispatch request (has dispatch_data) or a depart request
+    if dispatch_data and isinstance(dispatch_data, dict) and 'vehicle_type' in dispatch_data:
+        # This is a dispatch request
+        logger.info(f"Processing as dispatch request for batch {batch_id}")
+        
+        # Validate the status transition
+        if batch.status != "open":
+            logger.error(f"Invalid status for dispatch: {batch.status}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Batch must be in 'open' status to dispatch. Current status: {batch.status}"
+            )
+        
+        # Update batch with dispatch information
+        batch.status = "dispatched"
+        batch.vehicle_number = dispatch_data.get('vehicle_type')
+        batch.driver_name = dispatch_data.get('driver_name')
+        
+        # Handle eta if provided
+        if 'eta' in dispatch_data:
+            try:
+                batch.eta = dispatch_data['eta']
+                logger.info(f"Set ETA for batch {batch_id}")
+            except Exception as e:
+                logger.error(f"Error parsing ETA: {str(e)}")
+        
+        # Update photo URL if provided
+        if 'photo_url' in dispatch_data:
+            batch.photo_url = dispatch_data['photo_url']
+            logger.info(f"Updated photo URL for batch {batch_id}")
+        
+        # Update notes if provided
+        if 'notes' in dispatch_data:
+            batch.notes = dispatch_data['notes'] if not batch.notes else f"{batch.notes}\n{dispatch_data['notes']}"
+            logger.info(f"Updated notes for batch {batch_id}")
+        
+        logger.info(f"Batch {batch_id} marked as dispatched")
+    else:
+        # This is a regular depart request
+        logger.info(f"Processing as depart request for batch {batch_id}")
+        
+        # Check if the batch is in a valid state for departure
+        if batch.status != "open" and batch.status != "dispatched":
+            logger.error(f"Invalid status for departure: {batch.status}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Batch must be in 'open' or 'dispatched' status to mark as departed. Current status: {batch.status}"
+            )
+        
+        # Update batch status and departure time
+        batch.status = "in_transit"
+        batch.departure_time = datetime.now()
+        logger.info(f"Batch {batch_id} marked as in_transit")
+    
+    try:
+        logger.info(f"Committing changes for batch {batch_id}")
+        db.commit()
+        db.refresh(batch)
+        
+        # Prepare response
+        logger.info(f"Preparing response for batch {batch_id}")
+        response = prepare_batch_response(batch, db)
+        return response
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error updating batch: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot mark departure for batch with status '{batch.status}'"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating batch: {str(e)}"
         )
-
-    # Check if required fields for dispatch are present
-    if not batch.transport_mode:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Transport mode is required to dispatch a batch"
-        )
-
-    if not batch.to_location:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Destination (to_location) is required to dispatch a batch"
-        )
-
-    # Update batch
-    batch.status = "in_transit"
-    batch.departure_time = datetime.utcnow()
     db.commit()
     db.refresh(batch)
 
@@ -1623,32 +1679,69 @@ async def close_batch(
         )
 
 
-@router.post("/batches/{batch_id}/dispatch", response_model=BatchResponse, status_code=status.HTTP_200_OK)
-async def dispatch_batch(
+# Debug endpoints to test URL routing
+@router.get("/debug/routes", status_code=status.HTTP_200_OK)
+async def debug_routes():
+    """Debug endpoint to verify router configuration"""
+    logger.info("Debug routes endpoint called successfully")
+    return {"status": "ok", "message": "Router is working correctly"}
+
+@router.get("/test", status_code=status.HTTP_200_OK)
+async def test_endpoint():
+    """Simple test endpoint"""
+    logger.info("Test endpoint called successfully")
+    return {"status": "ok", "message": "Test endpoint is working correctly"}
+
+@router.post("/test-dispatch/{batch_id}", status_code=status.HTTP_200_OK)
+async def test_dispatch(batch_id: uuid.UUID, data: dict):
+    """Simple test dispatch endpoint"""
+    logger.info(f"Test dispatch endpoint called for batch {batch_id} with data: {data}")
+    return {
+        "status": "ok", 
+        "message": "Test dispatch received", 
+        "batch_id": str(batch_id),
+        "data": data
+    }
+
+# Create a completely new endpoint with a different path structure
+@router.post("/dispatch-batch/{batch_id}", status_code=status.HTTP_200_OK)
+async def dispatch_batch_new(
     batch_id: uuid.UUID,
     dispatch_data: BatchDispatchData,
     db: Session = Depends(get_db_dependency),
     current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
-    """
-    Mark a batch as dispatched and update dispatch-related information
-    """
+    """New endpoint to dispatch a batch"""
+    logger.info(f"New dispatch endpoint called for batch {batch_id} with data: {dispatch_data}")
+    return await dispatch_batch_impl(batch_id, dispatch_data, db)
+
+# Implementation function to avoid code duplication
+async def dispatch_batch_impl(batch_id: uuid.UUID, dispatch_data: BatchDispatchData, db: Session):
+    """Implementation of batch dispatch logic"""
     try:
+        logger.info(f"Processing dispatch for batch {batch_id}")
+        
         # Get the batch
         batch = db.query(Batch).filter(Batch.id == batch_id).first()
         if not batch:
+            logger.error(f"Batch with ID {batch_id} not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Batch with ID {batch_id} not found"
             )
         
+        logger.info(f"Found batch {batch_id}, current status: {batch.status}")
+        
         # Validate the status transition
         is_valid, error_message = validate_batch_transition(batch.status, "dispatched")
         if not is_valid:
+            logger.error(f"Invalid status transition: {error_message}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=error_message
             )
+        
+        logger.info(f"Status transition valid, updating batch {batch_id} to dispatched")
         
         # Update batch with dispatch information
         batch.status = "dispatched"
@@ -1659,25 +1752,31 @@ async def dispatch_batch(
         # Update photo URL if provided
         if dispatch_data.photo_url:
             batch.photo_url = dispatch_data.photo_url
+            logger.info(f"Updated photo URL for batch {batch_id}")
         
         # Update notes if provided
         if dispatch_data.notes:
             batch.notes = dispatch_data.notes if not batch.notes else f"{batch.notes}\n{dispatch_data.notes}"
+            logger.info(f"Updated notes for batch {batch_id}")
         
         # Save changes
+        logger.info(f"Committing changes for batch {batch_id}")
         db.commit()
         db.refresh(batch)
         
         # Prepare response
+        logger.info(f"Preparing response for batch {batch_id}")
         response = prepare_batch_response(batch, db)
+        logger.info(f"Dispatch successful for batch {batch_id}")
         return response
     
     except HTTPException as http_exc:
         # Re-raise HTTP exceptions as is
+        logger.error(f"HTTP exception in dispatch: {http_exc.detail}")
         raise http_exc
     except Exception as e:
         # Log the error and raise a generic HTTP exception
-        logging.error(f"Error dispatching batch: {str(e)}")
+        logger.error(f"Unexpected error dispatching batch: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error dispatching batch: {str(e)}"

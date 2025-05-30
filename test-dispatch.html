@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispatch Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { display: flex; gap: 20px; }
+        .form-container { flex: 1; }
+        .result-container { flex: 1; }
+        textarea { width: 100%; height: 200px; margin-top: 10px; }
+        button { padding: 10px 20px; margin-top: 10px; cursor: pointer; }
+        input, select { width: 100%; padding: 8px; margin-bottom: 10px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Batch Dispatch Test Tool</h1>
+    
+    <div class="container">
+        <div class="form-container">
+            <h2>Dispatch Form</h2>
+            
+            <label for="api-url">API URL:</label>
+            <input type="text" id="api-url" value="https://asikh-oms-test-cd0577c5c937.herokuapp.com" />
+            
+            <label for="batch-id">Batch ID:</label>
+            <input type="text" id="batch-id" value="14869c82-c701-4cd4-82c9-1fbc05437afb" />
+            
+            <label for="endpoint-type">Endpoint Type:</label>
+            <select id="endpoint-type">
+                <option value="standard">/api/batches/{id}/dispatch</option>
+                <option value="direct">/api/batches/direct/{id}/dispatch</option>
+                <option value="depart">/api/batches/{id}/depart</option>
+            </select>
+            
+            <label for="vehicle-type">Vehicle Type:</label>
+            <select id="vehicle-type">
+                <option value="truck">Truck</option>
+                <option value="van">Van</option>
+                <option value="bicycle">Bicycle</option>
+                <option value="motorbike">Motorbike</option>
+                <option value="other">Other</option>
+            </select>
+            
+            <label for="driver-name">Driver Name:</label>
+            <input type="text" id="driver-name" value="Test Driver" />
+            
+            <label for="eta">ETA (hours from now):</label>
+            <input type="number" id="eta" value="2" min="1" max="24" />
+            
+            <label for="notes">Notes:</label>
+            <input type="text" id="notes" value="Test dispatch from tool" />
+            
+            <button id="test-button">Test Dispatch</button>
+        </div>
+        
+        <div class="result-container">
+            <h2>Results</h2>
+            <div id="status"></div>
+            <label for="result">Response:</label>
+            <textarea id="result" readonly></textarea>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('test-button').addEventListener('click', async function() {
+            const apiUrl = document.getElementById('api-url').value;
+            const batchId = document.getElementById('batch-id').value;
+            const endpointType = document.getElementById('endpoint-type').value;
+            const vehicleType = document.getElementById('vehicle-type').value;
+            const driverName = document.getElementById('driver-name').value;
+            const etaHours = parseInt(document.getElementById('eta').value);
+            const notes = document.getElementById('notes').value;
+            
+            // Calculate ETA
+            const eta = new Date();
+            eta.setHours(eta.getHours() + etaHours);
+            
+            // Prepare request data
+            const requestData = {
+                vehicle_type: vehicleType,
+                driver_name: driverName,
+                eta: eta.toISOString(),
+                notes: notes
+            };
+            
+            // Determine endpoint URL
+            let endpointUrl;
+            switch(endpointType) {
+                case 'direct':
+                    endpointUrl = `${apiUrl}/api/batches/direct/${batchId}/dispatch`;
+                    break;
+                case 'depart':
+                    endpointUrl = `${apiUrl}/api/batches/${batchId}/depart`;
+                    break;
+                default:
+                    endpointUrl = `${apiUrl}/api/batches/${batchId}/dispatch`;
+            }
+            
+            // Update status
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = `<p>Sending request to: ${endpointUrl}</p>`;
+            statusEl.innerHTML += `<p>Request data: ${JSON.stringify(requestData)}</p>`;
+            
+            try {
+                const response = await fetch(endpointUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+                
+                const responseText = await response.text();
+                let formattedResponse;
+                
+                try {
+                    // Try to format as JSON if possible
+                    const jsonResponse = JSON.parse(responseText);
+                    formattedResponse = JSON.stringify(jsonResponse, null, 2);
+                } catch {
+                    formattedResponse = responseText;
+                }
+                
+                if (response.ok) {
+                    statusEl.innerHTML += `<p class="success">Success! Status: ${response.status}</p>`;
+                } else {
+                    statusEl.innerHTML += `<p class="error">Error! Status: ${response.status}</p>`;
+                }
+                
+                document.getElementById('result').value = formattedResponse;
+                
+            } catch (error) {
+                statusEl.innerHTML += `<p class="error">Error: ${error.message}</p>`;
+                document.getElementById('result').value = error.toString();
+            }
+        });
+    </script>
+</body>
+</html>
