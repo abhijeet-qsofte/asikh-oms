@@ -56,7 +56,7 @@ class BatchUpdate(BaseModel):
     @validator('status')
     def validate_status(cls, v):
         if v is not None:
-            valid_statuses = ['open', 'in_transit', 'delivered', 'reconciled', 'closed']
+            valid_statuses = ['open', 'dispatched', 'in_transit', 'arrived', 'delivered', 'reconciled', 'closed']
             if v not in valid_statuses:
                 raise ValueError(f'Status must be one of {valid_statuses}')
         return v

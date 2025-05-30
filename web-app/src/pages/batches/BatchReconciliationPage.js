@@ -104,7 +104,10 @@ const BatchReconciliationPage = () => {
       
       // Check if crate belongs to this batch
       if (crateData.batch_id !== parseInt(batchId)) {
-        setError(`This crate belongs to batch #${crateData.batch_id}, not the current batch #${batchId}.`);
+        // Get batch code if available
+        const batchCode = batch?.batch_code || batchId;
+        const crateBatchCode = crateData.batch_code || crateData.batch_id;
+        setError(`This crate belongs to batch #${crateBatchCode}, not the current batch #${batchCode}.`);
         setScanning(false);
         return;
       }

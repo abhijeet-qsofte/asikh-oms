@@ -232,11 +232,11 @@ const BatchesPage = () => {
         });
       }
       
-      // Filter by search term (batch ID or notes)
+      // Filter by search term (batch code or notes)
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         filtered = filtered.filter(batch => 
-          batch.id.toString().includes(searchTerm) || 
+          (batch.batch_code && batch.batch_code.toString().includes(searchTerm)) || 
           (batch.notes && batch.notes.toLowerCase().includes(searchTerm))
         );
       }
@@ -363,7 +363,7 @@ const BatchesPage = () => {
                   name="search"
                   value={filters.search}
                   onChange={handleFilterChange}
-                  placeholder="Search by batch ID or notes"
+                  placeholder="Search by batch code or notes"
                   variant="outlined"
                   size="small"
                 />

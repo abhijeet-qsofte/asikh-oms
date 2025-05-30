@@ -23,7 +23,8 @@ from app.models.qr_code import QRCode
 
 # Define valid batch status transitions
 VALID_BATCH_TRANSITIONS = {
-    "open": ["in_transit", "arrived"],
+    "open": ["dispatched", "in_transit", "arrived"],
+    "dispatched": ["in_transit"],
     "in_transit": ["arrived"],
     "arrived": ["delivered"],
     "delivered": ["closed"],
@@ -44,6 +45,7 @@ def validate_batch_transition(current_status, new_status):
 from app.models.reconciliation import ReconciliationLog, CrateReconciliation
 from app.models.variety import Variety
 from collections import defaultdict
+from app.schemas.dispatch import BatchDispatchData
 from app.schemas.batch import (
     BatchCreate,
     BatchUpdate,
@@ -1618,4 +1620,65 @@ async def close_batch(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error closing batch: {str(e)}"
+        )
+
+
+@router.post("/batches/{batch_id}/dispatch", response_model=BatchResponse, status_code=status.HTTP_200_OK)
+async def dispatch_batch(
+    batch_id: uuid.UUID,
+    dispatch_data: BatchDispatchData,
+    db: Session = Depends(get_db_dependency),
+    current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
+):
+    """
+    Mark a batch as dispatched and update dispatch-related information
+    """
+    try:
+        # Get the batch
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Batch with ID {batch_id} not found"
+            )
+        
+        # Validate the status transition
+        is_valid, error_message = validate_batch_transition(batch.status, "dispatched")
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=error_message
+            )
+        
+        # Update batch with dispatch information
+        batch.status = "dispatched"
+        batch.vehicle_number = dispatch_data.vehicle_type
+        batch.driver_name = dispatch_data.driver_name
+        batch.eta = dispatch_data.eta
+        
+        # Update photo URL if provided
+        if dispatch_data.photo_url:
+            batch.photo_url = dispatch_data.photo_url
+        
+        # Update notes if provided
+        if dispatch_data.notes:
+            batch.notes = dispatch_data.notes if not batch.notes else f"{batch.notes}\n{dispatch_data.notes}"
+        
+        # Save changes
+        db.commit()
+        db.refresh(batch)
+        
+        # Prepare response
+        response = prepare_batch_response(batch, db)
+        return response
+    
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions as is
+        raise http_exc
+    except Exception as e:
+        # Log the error and raise a generic HTTP exception
+        logging.error(f"Error dispatching batch: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error dispatching batch: {str(e)}"
         )

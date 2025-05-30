@@ -198,13 +198,13 @@ const CrateDetailPage = () => {
               {crate.batch ? (
                 <>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Batch ID:</strong>{' '}
+                    <strong>Batch:</strong>{' '}
                     <Button
                       variant="text"
                       size="small"
                       onClick={() => navigate(`/batches/${crate.batch.id}`)}
                     >
-                      #{crate.batch.id}
+                      #{crate.batch.batch_code || crate.batch.id}
                     </Button>
                   </Typography>
                   <Typography variant="body1" gutterBottom>

@@ -479,7 +479,7 @@ const CrateCreatePage = () => {
                         if (!['completed', 'reconciled', 'delivered', 'closed'].includes(status)) {
                           return (
                             <MenuItem key={batch.id} value={batch.id}>
-                              Batch #{batch.id}
+                              Batch #{batch.batch_code || batch.id}
                               {batch.farm ? ` - ${batch.farm.name || 'Unknown Farm'}` : ''}
                               {batch.variety ? ` (${batch.variety.name || 'Unknown Variety'})` : ''}
                             </MenuItem>

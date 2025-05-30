@@ -283,7 +283,7 @@ const ReconciliationDetailPage = () => {
             Back
           </Button>
           <Typography variant="h4" component="h1">
-            Reconcile Batch #{batch.id}
+            Reconcile Batch #{batch.batch_code || batch.id}
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
           <Button

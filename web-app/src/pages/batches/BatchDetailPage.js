@@ -3,6 +3,17 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  DialogContentText,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  TextField,
+  FormHelperText,
   Card,
   CardContent,
   Container,
@@ -12,15 +23,9 @@ import {
   Grid,
   CircularProgress,
   Alert,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
   IconButton,
   Chip,
   Tooltip,
-  TextField,
   Table,
   TableBody,
   TableCell,
@@ -30,6 +35,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Snackbar,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -70,15 +76,121 @@ const BatchDetailPage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editError, setEditError] = useState(null);
   
+  // Minimal crate creation state
+  const [minimalCrateOpen, setMinimalCrateOpen] = useState(false);
+  const [minimalCrateData, setMinimalCrateData] = useState({
+    qr_code: '',
+    variety_id: '',
+    weight: 1.0,
+    notes: ''
+  });
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  
   // QR code scanning state
   const [scanning, setScanning] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQRCode, setManualQRCode] = useState('');
   const [scanSuccess, setScanSuccess] = useState(null);
+  const [dispatchDialogOpen, setDispatchDialogOpen] = useState(false);
+  const [dispatchData, setDispatchData] = useState({
+    vehicle_type: '',
+    driver_name: '',
+    eta: '',
+    photo_url: '',
+    notes: ''
+  });
+  const [dispatchErrors, setDispatchErrors] = useState({});
+  const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [farms, setFarms] = useState([]);
   const [packhouses, setPackhouses] = useState([]);
   const [varieties, setVarieties] = useState([]);
   const [editLoading, setEditLoading] = useState(false);
+  
+  // Handle minimal crate form changes
+  const handleMinimalCrateChange = (e) => {
+    const { name, value } = e.target;
+    setMinimalCrateData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle minimal crate submission
+  const handleMinimalCrateSubmit = async () => {
+    if (!minimalCrateData.qr_code.trim()) {
+      setSnackbarMessage('Please enter a QR code');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    if (!minimalCrateData.variety_id) {
+      setSnackbarMessage('Please select a mango variety');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      
+      // First, check if the QR code exists in the system
+      // If not, create it first
+      const qrCode = minimalCrateData.qr_code.trim();
+      
+      try {
+        // Try to create the QR code first to ensure it exists
+        await axios.post(`${API_URL}${ENDPOINTS.QR_CODE}`, {
+          code_value: qrCode,
+          status: 'active',
+          entity_type: 'crate'
+        });
+        console.log(`Created QR code: ${qrCode}`);
+      } catch (qrError) {
+        // If error is 409 Conflict, the QR code already exists, which is fine
+        if (qrError.response?.status !== 409) {
+          console.warn('Error creating QR code, but continuing anyway:', qrError);
+        } else {
+          console.log('QR code already exists, continuing with crate creation');
+        }
+      }
+      
+      // Now add the minimal crate to the batch
+      console.log('Making API request to:', `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`);
+      const response = await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
+      console.log('API response:', response.data);
+      
+      // Show success message
+      setSnackbarMessage(`Crate ${minimalCrateData.qr_code} added to batch successfully`);
+      setSnackbarOpen(true);
+      
+      // Reset form
+      setMinimalCrateData({
+        qr_code: '',
+        variety_id: '',
+        weight: 1.0,
+        notes: ''
+      });
+      
+      // Close dialog
+      setMinimalCrateOpen(false);
+      
+      // Refresh batch data by refetching everything
+      window.location.reload();
+    } catch (err) {
+      console.error('Error adding minimal crate to batch:', err);
+      console.error('Error details:', err.response?.data);
+      
+      setSnackbarMessage(`Error adding crate: ${err.response?.data?.detail || err.message}`);
+      setSnackbarOpen(true);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+  
+  // Handle snackbar close
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
   
   useEffect(() => {
     const fetchBatchDetails = async () => {
@@ -189,11 +301,77 @@ const BatchDetailPage = () => {
   };
   
   const handleDispatch = () => {
-    openConfirmDialog(
-      'Dispatch Batch',
-      'Are you sure you want to mark this batch as in transit? This will record the current time as the departure time.',
-      () => handleStatusChange('in_transit')
-    );
+    setDispatchDialogOpen(true);
+  };
+  
+  const handleDispatchSubmit = async () => {
+    // Validate form
+    const errors = {};
+    if (!dispatchData.vehicle_type) errors.vehicle_type = 'Vehicle type is required';
+    if (!dispatchData.driver_name) errors.driver_name = 'Driver name is required';
+    if (!dispatchData.eta) errors.eta = 'ETA is required';
+    
+    if (Object.keys(errors).length > 0) {
+      setDispatchErrors(errors);
+      return;
+    }
+    
+    setDispatchErrors({});
+    setLoading(true);
+    
+    try {
+      // Format the date for API
+      const formattedData = {
+        ...dispatchData,
+        eta: new Date(dispatchData.eta).toISOString()
+      };
+      
+      const response = await fetch(
+        `${API_URL}${ENDPOINTS.BATCH_DISPATCH(batch.id)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`,
+          },
+          body: JSON.stringify(formattedData),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to dispatch batch');
+      }
+      
+      const updatedBatch = await response.json();
+      setBatch(updatedBatch);
+      setSnackbarMessage('Batch has been dispatched successfully');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
+      setDispatchDialogOpen(false);
+    } catch (err) {
+      setSnackbarMessage(err.message || 'Failed to dispatch batch');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDispatchChange = (e) => {
+    const { name, value } = e.target;
+    setDispatchData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error for this field if it exists
+    if (dispatchErrors[name]) {
+      setDispatchErrors(prev => ({
+        ...prev,
+        [name]: undefined
+      }));
+    }
   };
   
   const handleArrive = () => {
@@ -866,14 +1044,37 @@ const BatchDetailPage = () => {
                   Crates in Batch ({crates.length})
                 </Typography>
                 
-                <Button
-                  variant="outlined"
-                  startIcon={<AddBoxIcon />}
-                  onClick={() => navigate(`/batches/${id}/add-crates`)}
-                  size="small"
-                >
-                  Add Crates
-                </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Tooltip title="Coming soon - This feature is under development">
+                    <span> {/* Wrapper needed for disabled button tooltip */}
+                      <Button
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<AddIcon />}
+                        disabled={true}
+                        size="small"
+                        sx={{
+                          background: 'linear-gradient(45deg, #FF8E53 30%, #FE6B8B 90%)',
+                          opacity: 0.7,
+                          '&.Mui-disabled': {
+                            color: 'white',
+                            opacity: 0.5
+                          }
+                        }}
+                      >
+                        New Crate
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AddBoxIcon />}
+                    onClick={() => navigate(`/batches/${id}/add-crates`)}
+                    size="small"
+                  >
+                    Add Crates
+                  </Button>
+                </Box>
               </Box>
               
               <Divider sx={{ mb: 2 }} />
@@ -1006,6 +1207,105 @@ const BatchDetailPage = () => {
         </DialogActions>
       </Dialog>
       
+      {/* Minimal Crate Dialog */}
+      <Dialog open={minimalCrateOpen} onClose={() => setMinimalCrateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Add New Crate
+          <IconButton
+            aria-label="close"
+            onClick={() => setMinimalCrateOpen(false)}
+            sx={{ position: 'absolute', right: 8, top: 8 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Box component="form" sx={{ mt: 1 }}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="qr_code"
+              label="QR Code"
+              name="qr_code"
+              autoFocus
+              value={minimalCrateData.qr_code}
+              onChange={handleMinimalCrateChange}
+            />
+            <FormControl fullWidth margin="normal" required>
+              <InputLabel id="variety-label">Mango Variety</InputLabel>
+              <Select
+                labelId="variety-label"
+                id="variety_id"
+                name="variety_id"
+                value={minimalCrateData.variety_id}
+                label="Mango Variety"
+                onChange={handleMinimalCrateChange}
+              >
+                {varieties.map((variety) => (
+                  <MenuItem key={variety.id} value={variety.id}>
+                    {variety.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              margin="normal"
+              fullWidth
+              id="weight"
+              label="Weight (kg)"
+              name="weight"
+              type="number"
+              inputProps={{ step: 0.1 }}
+              value={minimalCrateData.weight}
+              onChange={handleMinimalCrateChange}
+            />
+            <TextField
+              margin="normal"
+              fullWidth
+              id="notes"
+              label="Notes"
+              name="notes"
+              multiline
+              rows={2}
+              value={minimalCrateData.notes}
+              onChange={handleMinimalCrateChange}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMinimalCrateOpen(false)} color="inherit">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleMinimalCrateSubmit}
+            color="primary"
+            variant="contained"
+            disabled={editLoading}
+          >
+            {editLoading ? <CircularProgress size={24} /> : 'Add Crate'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={6000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+        action={
+          <IconButton
+            size="small"
+            aria-label="close"
+            color="inherit"
+            onClick={handleSnackbarClose}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        }
+      />
+      
       {/* Batch Edit Form */}
       <BatchEditForm
         batch={batch}
@@ -1043,6 +1343,101 @@ const BatchDetailPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setScanning(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Dispatch Dialog */}
+      <Dialog
+        open={dispatchDialogOpen}
+        onClose={() => setDispatchDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Dispatch Batch</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <FormControl
+              fullWidth
+              error={!!dispatchErrors.vehicle_type}
+              required
+            >
+              <InputLabel id="vehicle-type-label">Vehicle Type</InputLabel>
+              <Select
+                labelId="vehicle-type-label"
+                id="vehicle-type"
+                name="vehicle_type"
+                value={dispatchData.vehicle_type}
+                onChange={handleDispatchChange}
+                label="Vehicle Type"
+              >
+                <MenuItem value="truck">Truck</MenuItem>
+                <MenuItem value="van">Van</MenuItem>
+                <MenuItem value="bicycle">Bicycle</MenuItem>
+                <MenuItem value="motorbike">Motorbike</MenuItem>
+                <MenuItem value="other">Other</MenuItem>
+              </Select>
+              {dispatchErrors.vehicle_type && (
+                <FormHelperText>{dispatchErrors.vehicle_type}</FormHelperText>
+              )}
+            </FormControl>
+            
+            <TextField
+              required
+              fullWidth
+              id="driver-name"
+              name="driver_name"
+              label="Driver Name"
+              value={dispatchData.driver_name}
+              onChange={handleDispatchChange}
+              error={!!dispatchErrors.driver_name}
+              helperText={dispatchErrors.driver_name}
+            />
+            
+            <TextField
+              required
+              fullWidth
+              id="eta"
+              name="eta"
+              label="Estimated Time of Arrival"
+              type="datetime-local"
+              value={dispatchData.eta}
+              onChange={handleDispatchChange}
+              InputLabelProps={{ shrink: true }}
+              error={!!dispatchErrors.eta}
+              helperText={dispatchErrors.eta}
+            />
+            
+            <TextField
+              fullWidth
+              id="photo-url"
+              name="photo_url"
+              label="Photo URL (optional)"
+              value={dispatchData.photo_url}
+              onChange={handleDispatchChange}
+            />
+            
+            <TextField
+              fullWidth
+              id="notes"
+              name="notes"
+              label="Notes (optional)"
+              multiline
+              rows={3}
+              value={dispatchData.notes}
+              onChange={handleDispatchChange}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDispatchDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleDispatchSubmit}
+            variant="contained"
+            color="primary"
+            disabled={loading}
+          >
+            Dispatch Batch
+          </Button>
         </DialogActions>
       </Dialog>
       

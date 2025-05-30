@@ -187,7 +187,7 @@ const ReconciliationPage = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <BatchIcon sx={{ color: 'primary.main', mr: 1 }} />
                         <Typography variant="h6" component="div">
-                          Batch #{batch.id}
+                          Batch #{batch.batch_code || batch.id}
                         </Typography>
                       </Box>
                       <Chip
