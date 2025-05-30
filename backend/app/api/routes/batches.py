@@ -54,7 +54,7 @@ from app.schemas.batch import (
 from app.schemas.crate import CrateMinimalCreate, CrateResponse
 from app.models.qr_code import QRCode
 
-router = APIRouter(prefix="/batches", tags=["batches"])
+router = APIRouter(tags=["batches"])
 logger = logging.getLogger(__name__)
 
 # Helper function to get reconciliation status for a batch

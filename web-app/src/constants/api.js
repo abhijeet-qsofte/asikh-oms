@@ -61,7 +61,7 @@ export const ENDPOINTS = {
   CRATES_UNASSIGNED: `${API_VERSION}/crates/unassigned-list`,
   
   // Batch Management
-  BATCHES: `${API_VERSION}/batches`,
+  BATCHES: `${API_VERSION}/batches/`,
   BATCH_DETAIL: (id) => `${API_VERSION}/batches/${id}`,
   BATCH_BY_CODE: (code) => `${API_VERSION}/batches/code/${code}`,
   BATCH_DEPART: (id) => `${API_VERSION}/batches/${id}/depart`,

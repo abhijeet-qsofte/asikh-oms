@@ -63,9 +63,19 @@ const BatchAddCratesPage = () => {
   const fetchVarieties = useCallback(async () => {
     try {
       const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
-      setVarieties(varietiesResponse.data || []);
+      // Make sure we're setting an array of varieties
+      // The API might return {items: [...]} or directly an array
+      if (varietiesResponse.data && Array.isArray(varietiesResponse.data)) {
+        setVarieties(varietiesResponse.data);
+      } else if (varietiesResponse.data && Array.isArray(varietiesResponse.data.items)) {
+        setVarieties(varietiesResponse.data.items);
+      } else {
+        console.error('Unexpected varieties response format:', varietiesResponse.data);
+        setVarieties([]);
+      }
     } catch (err) {
       console.error('Error fetching varieties:', err);
+      setVarieties([]);
     }
   }, []);
 
