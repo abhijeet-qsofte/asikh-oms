@@ -162,26 +162,21 @@ const BatchAddCratesPage = () => {
   const handleScan = async (qrCode) => {
     closeQrScanner();
     
-    try {
-      setLoading(true);
-      setError(null);
-      setSuccess(null);
-      
-      // Add crate to batch
-      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(id)}`, { qr_code: qrCode });
-      
-      // Show success message
-      setSuccess(`Crate ${qrCode} added to batch successfully`);
-      setSnackbarMessage(`QR Code scanned: ${qrCode}`);
-      setSnackbarOpen(true);
-      
-      // Refresh crate list
-      fetchBatchData();
-    } catch (err) {
-      console.error('Error adding crate to batch:', err);
-      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
-      setLoading(false);
+    // Check if we have varieties loaded
+    if (varieties.length === 0) {
+      setError('No varieties available. Please try again after varieties are loaded.');
+      return;
     }
+    
+    // Set the QR code in the minimal crate data and open the dialog
+    // This will allow the user to select a variety if the crate doesn't exist
+    setMinimalCrateData(prev => ({
+      ...prev,
+      qr_code: qrCode,
+      variety_id: varieties.length > 0 ? varieties[0].id : '',
+      weight: 1.0
+    }));
+    setMinimalCrateOpen(true);
   };
   
   const handleSnackbarClose = () => {

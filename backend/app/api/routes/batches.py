@@ -1042,76 +1042,140 @@ async def add_crate_to_batch(
     current_user: User = Depends(check_role(["admin", "supervisor", "manager"]))
 ):
     """
-    Add a crate to a batch
+    Add a crate to a batch. If the crate doesn't exist, it will be created.
     """
-    # Extract QR code or crate_id from request body
-    qr_code = crate_data.get('qr_code')
-    crate_id = crate_data.get('crate_id')
-    
-    if not qr_code and not crate_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Either QR code or crate ID is required"
-        )
+    try:
+        # Extract QR code or crate_id from request body
+        qr_code = crate_data.get('qr_code')
+        crate_id = crate_data.get('crate_id')
+        variety_id = crate_data.get('variety_id')
+        weight = crate_data.get('weight', 1.0)
         
-    # Verify batch exists
-    batch = db.query(Batch).filter(Batch.id == batch_id).first()
-    if not batch:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Batch not found"
-        )
-    
-    # Check if batch is in valid state for adding crates
-    if batch.status not in ["open"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot add crates to batch with status '{batch.status}'"
-        )
-    
-    # Find the crate by QR code or ID
-    if qr_code:
-        crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
-    else:
-        crate = db.query(Crate).filter(Crate.id == crate_id).first()
-    if not crate:
-        error_detail = f"Crate with QR code {qr_code} not found" if qr_code else f"Crate with ID {crate_id} not found"
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=error_detail
-        )
-    
-    # Check if crate is already in a batch
-    if crate.batch_id is not None:
-        # If already in this batch, return success
-        if crate.batch_id == batch_id:
-            return await get_batch(batch_id, db, current_user)
+        if not qr_code and not crate_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either QR code or crate ID is required"
+            )
+            
+        # Verify batch exists
+        batch = db.query(Batch).filter(Batch.id == batch_id).first()
+        if not batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch not found"
+            )
         
-        # If in another batch, raise error
-        existing_batch = db.query(Batch).filter(Batch.id == crate.batch_id).first()
+        # Check if batch is in valid state for adding crates
+        if batch.status not in ["open"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot add crates to batch with status '{batch.status}'"
+            )
+        
+        # Find the crate by QR code or ID
+        if qr_code:
+            crate = db.query(Crate).filter(Crate.qr_code == qr_code).first()
+        else:
+            crate = db.query(Crate).filter(Crate.id == crate_id).first()
+            
+        # If crate doesn't exist, create it (only if QR code is provided)
+        if not crate and qr_code:
+            logger.info(f"Crate with QR code {qr_code} not found, creating it")
+            
+            # Check if variety_id is provided when creating a new crate
+            if not variety_id:
+                # Try to get a default variety_id from other crates in the batch
+                default_variety = None
+                if batch.crates and len(batch.crates) > 0:
+                    default_variety = batch.crates[0].variety_id
+                    
+                if not default_variety:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Variety ID is required when creating a new crate"
+                    )
+                variety_id = default_variety
+            
+            # Check if QR code exists in qr_codes table
+            qr_code_obj = db.query(QRCode).filter(QRCode.code_value == qr_code).first()
+            
+            # If QR code doesn't exist in qr_codes table, create it
+            if not qr_code_obj:
+                logger.info(f"QR code {qr_code} not found in qr_codes table, creating it")
+                qr_code_obj = QRCode(
+                    code_value=qr_code,
+                    status="active",
+                    entity_type="crate"
+                )
+                db.add(qr_code_obj)
+                db.flush()  # Flush to get the ID without committing
+                logger.info(f"Created new QR code entry: {qr_code}")
+            
+            # Create new crate with minimal information
+            current_time = datetime.utcnow()
+            crate = Crate(
+                qr_code=qr_code,
+                harvest_date=current_time,
+                gps_location={"lat": batch.latitude, "lng": batch.longitude, "accuracy": 0},
+                supervisor_id=current_user.id,
+                weight=weight,
+                variety_id=variety_id,
+                farm_id=batch.from_location,
+                notes=f"Crate created and added to batch {batch.batch_code}",
+                quality_grade="A"
+            )
+            db.add(crate)
+            logger.info(f"Created new crate with QR code {qr_code}")
+        elif not crate:
+            # If crate_id was provided but crate doesn't exist
+            error_detail = f"Crate with ID {crate_id} not found"
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_detail
+            )
+        
+        # Check if crate is already in a batch
+        if crate.batch_id is not None:
+            # If already in this batch, return success
+            if crate.batch_id == batch_id:
+                return await get_batch(batch_id, db, current_user)
+            
+            # If in another batch, raise error
+            existing_batch = db.query(Batch).filter(Batch.id == crate.batch_id).first()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Crate already assigned to batch {existing_batch.batch_code}"
+            )
+        
+        # Add crate to batch
+        crate.batch_id = batch_id
+        
+        # Set farm_id on crate if not already set
+        if crate.farm_id is None:
+            crate.farm_id = batch.from_location
+            logger.info(f"Farm ID {batch.from_location} set on crate {crate.qr_code} from batch {batch.batch_code}")
+        
+        # Update batch statistics
+        batch.total_crates += 1
+        batch.total_weight += crate.weight
+        
+        db.commit()
+        
+        logger.info(f"Crate {qr_code or crate_id} added to batch {batch.batch_code} by user {current_user.username}")
+        
+        # Return updated batch
+        return await get_batch(batch_id, db, current_user)
+    except HTTPException as e:
+        # Re-raise HTTP exceptions
+        raise e
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error adding crate to batch: {str(e)}")
+        logger.exception("Exception details:")
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Crate already assigned to batch {existing_batch.batch_code}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding crate to batch: {str(e)}"
         )
-    
-    # Add crate to batch
-    crate.batch_id = batch_id
-    
-    # Set farm_id on crate if not already set
-    if crate.farm_id is None:
-        crate.farm_id = batch.from_location
-        logger.info(f"Farm ID {batch.from_location} set on crate {crate.qr_code} from batch {batch.batch_code}")
-    
-    # Update batch statistics
-    batch.total_crates += 1
-    batch.total_weight += crate.weight
-    
-    db.commit()
-    
-    logger.info(f"Crate {qr_code} added to batch {batch.batch_code} by user {current_user.username}")
-    
-    # Return updated batch
-    return await get_batch(batch_id, db, current_user)
 
 
 @router.post("/{batch_id}/add-minimal-crate", response_model=BatchResponse)
