@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,14 +25,16 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Snackbar,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  QrCode as QrCodeIcon,
+  QrCodeScanner as QrCodeScannerIcon,
   Search as SearchIcon,
   Add as AddIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
-import QRScanner from '../../components/qrcode/QRScanner';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { API_URL, ENDPOINTS } from '../../constants/api';
@@ -47,9 +49,12 @@ const BatchAddCratesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [scanning, setScanning] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const qrScannerRef = useRef(null);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQRCode, setManualQRCode] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
   const [minimalCrateOpen, setMinimalCrateOpen] = useState(false);
   const [minimalCrateData, setMinimalCrateData] = useState({
     qr_code: '',
@@ -63,12 +68,17 @@ const BatchAddCratesPage = () => {
   const fetchVarieties = useCallback(async () => {
     try {
       const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
-      // Make sure we're setting an array of varieties
-      // The API might return {items: [...]} or directly an array
-      if (varietiesResponse.data && Array.isArray(varietiesResponse.data)) {
+      console.log('Varieties response:', varietiesResponse.data);
+      
+      // Handle the response structure from the backend
+      // The API returns { total, page, page_size, varieties: [...] }
+      if (varietiesResponse.data && Array.isArray(varietiesResponse.data.varieties)) {
+        setVarieties(varietiesResponse.data.varieties);
+        console.log('Varieties set to:', varietiesResponse.data.varieties);
+      } else if (varietiesResponse.data && Array.isArray(varietiesResponse.data)) {
+        // Fallback if the API returns an array directly
         setVarieties(varietiesResponse.data);
-      } else if (varietiesResponse.data && Array.isArray(varietiesResponse.data.items)) {
-        setVarieties(varietiesResponse.data.items);
+        console.log('Varieties set to array:', varietiesResponse.data);
       } else {
         console.error('Unexpected varieties response format:', varietiesResponse.data);
         setVarieties([]);
@@ -113,9 +123,43 @@ const BatchAddCratesPage = () => {
     fetchVarieties();
   }, [id, fetchBatchData, fetchVarieties]);
   
+  // QR Code Scanner functions
+  const openQrScanner = () => {
+    setQrScannerOpen(true);
+    
+    // Initialize QR scanner after dialog is open
+    setTimeout(() => {
+      if (!qrScannerRef.current) {
+        qrScannerRef.current = new Html5QrcodeScanner(
+          "qr-reader",
+          { fps: 10, qrbox: 250 },
+          false
+        );
+
+        qrScannerRef.current.render(
+          (decodedText) => {
+            // QR code scanned successfully
+            handleScan(decodedText);
+          },
+          (errorMessage) => {
+            // Error handling
+            console.error("QR Code scanning error:", errorMessage);
+          }
+        );
+      }
+    }, 500);
+  };
+
+  const closeQrScanner = () => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.clear();
+    }
+    setQrScannerOpen(false);
+  };
+
   // Handle QR code scan
   const handleScan = async (qrCode) => {
-    setScanning(false);
+    closeQrScanner();
     
     try {
       setLoading(true);
@@ -127,6 +171,8 @@ const BatchAddCratesPage = () => {
       
       // Show success message
       setSuccess(`Crate ${qrCode} added to batch successfully`);
+      setSnackbarMessage(`QR Code scanned: ${qrCode}`);
+      setSnackbarOpen(true);
       
       // Refresh crate list
       fetchBatchData();
@@ -135,6 +181,10 @@ const BatchAddCratesPage = () => {
       setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
       setLoading(false);
     }
+  };
+  
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
   };
   
   // Handle adding an existing unassigned crate to the batch
@@ -182,6 +232,9 @@ const BatchAddCratesPage = () => {
 
   // Handle minimal crate submission
   const handleMinimalCrateSubmit = async () => {
+    console.log('handleMinimalCrateSubmit called');
+    console.log('Minimal crate data:', minimalCrateData);
+    
     if (!minimalCrateData.qr_code.trim()) {
       setError('Please enter a QR code');
       return;
@@ -198,10 +251,14 @@ const BatchAddCratesPage = () => {
       setSuccess(null);
       
       // Add minimal crate to batch
-      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
+      console.log('Making API request to:', `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`);
+      const response = await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
+      console.log('API response:', response.data);
       
       // Show success message
       setSuccess(`Crate ${minimalCrateData.qr_code} added to batch successfully`);
+      setSnackbarMessage(`Crate ${minimalCrateData.qr_code} added to batch successfully`);
+      setSnackbarOpen(true);
       
       // Reset form
       setMinimalCrateData({
@@ -218,7 +275,10 @@ const BatchAddCratesPage = () => {
       fetchBatchData();
     } catch (err) {
       console.error('Error adding minimal crate to batch:', err);
+      console.error('Error details:', err.response?.data);
       setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      setSnackbarMessage('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      setSnackbarOpen(true);
       setLoading(false);
     }
   };
@@ -319,8 +379,8 @@ const BatchAddCratesPage = () => {
         <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
           <Button
             variant="contained"
-            startIcon={<QrCodeIcon />}
-            onClick={() => setScanning(true)}
+            startIcon={<QrCodeScannerIcon />}
+            onClick={openQrScanner}
             disabled={batch?.status !== 'open'}
           >
             Scan QR Code
@@ -446,28 +506,32 @@ const BatchAddCratesPage = () => {
         )}
       </Paper>
       
-      {/* QR Scanner Dialog */}
-      <Dialog
-        open={scanning}
-        onClose={() => setScanning(false)}
-        fullWidth
-        maxWidth="sm"
-      >
-        <DialogTitle>Scan QR Code</DialogTitle>
+      {/* QR Code Scanner */}
+      <Dialog open={qrScannerOpen} onClose={closeQrScanner} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Scan QR Code
+          <IconButton
+            aria-label="close"
+            onClick={closeQrScanner}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
-          <QRScanner 
-            onScan={handleScan}
-            onError={(err) => setError(err)}
-            onClose={() => setScanning(false)}
-          />
+          <Box sx={{ mt: 2, mb: 2 }}>
+            <div id="qr-reader" style={{ width: '100%' }}></div>
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setScanning(false)} color="primary">
-            Cancel
-          </Button>
+          <Button onClick={closeQrScanner}>Cancel</Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Manual Entry Dialog */}
       <Dialog
         open={manualEntry}
@@ -499,71 +563,107 @@ const BatchAddCratesPage = () => {
 
       {/* Minimal crate creation dialog */}
       <Dialog open={minimalCrateOpen} onClose={() => setMinimalCrateOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add New Crate with Minimal Information</DialogTitle>
+        <DialogTitle>
+          Add New Crate with Minimal Information
+          <IconButton
+            aria-label="close"
+            onClick={() => setMinimalCrateOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2 }}>
-            <TextField
-              autoFocus
-              margin="dense"
-              id="qr_code"
-              name="qr_code"
-              label="QR Code *"
-              type="text"
-              fullWidth
-              variant="outlined"
-              value={minimalCrateData.qr_code}
-              onChange={handleMinimalCrateChange}
-              sx={{ mb: 2 }}
-              required
-            />
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 2 }}>
+                  <TextField
+                    autoFocus
+                    margin="dense"
+                    id="qr_code"
+                    name="qr_code"
+                    label="QR Code *"
+                    type="text"
+                    fullWidth
+                    variant="outlined"
+                    value={minimalCrateData.qr_code}
+                    onChange={handleMinimalCrateChange}
+                    required
+                    sx={{ mr: 1 }}
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={openQrScanner}
+                    sx={{ mt: 1, height: '56px' }}
+                  >
+                    <QrCodeScannerIcon />
+                  </Button>
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="variety-label">Mango Variety *</InputLabel>
+                  <Select
+                    labelId="variety-label"
+                    id="variety_id"
+                    name="variety_id"
+                    value={minimalCrateData.variety_id}
+                    label="Mango Variety *"
+                    onChange={handleMinimalCrateChange}
+                    required
+                  >
+                    <MenuItem value="">
+                      <em>Select variety</em>
+                    </MenuItem>
+                    {Array.isArray(varieties) && varieties.map((variety) => (
+                      <MenuItem key={variety.id} value={variety.id}>
+                        {variety.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
             
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel id="variety-label">Mango Variety *</InputLabel>
-              <Select
-                labelId="variety-label"
-                id="variety_id"
-                name="variety_id"
-                value={minimalCrateData.variety_id}
-                label="Mango Variety *"
-                onChange={handleMinimalCrateChange}
-                required
-              >
-                {varieties.map((variety) => (
-                  <MenuItem key={variety.id} value={variety.id}>
-                    {variety.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+              <Grid item xs={12}>
+                <TextField
+                  margin="dense"
+                  id="weight"
+                  name="weight"
+                  label="Weight (kg)"
+                  type="number"
+                  fullWidth
+                  variant="outlined"
+                  value={minimalCrateData.weight}
+                  onChange={handleMinimalCrateChange}
+                  sx={{ mb: 2 }}
+                  InputProps={{ inputProps: { min: 0.1, step: 0.1 } }}
+                  helperText="Default is 1.0 kg if not specified"
+                />
+              </Grid>
             
-            <TextField
-              margin="dense"
-              id="weight"
-              name="weight"
-              label="Weight (kg)"
-              type="number"
-              fullWidth
-              variant="outlined"
-              value={minimalCrateData.weight}
-              onChange={handleMinimalCrateChange}
-              sx={{ mb: 2 }}
-              InputProps={{ inputProps: { min: 0.1, step: 0.1 } }}
-              helperText="Default is 1.0 kg if not specified"
-            />
-            
-            <TextField
-              margin="dense"
-              id="notes"
-              name="notes"
-              label="Notes"
-              type="text"
-              fullWidth
-              variant="outlined"
-              value={minimalCrateData.notes}
-              onChange={handleMinimalCrateChange}
-              multiline
-              rows={2}
-            />
+              <Grid item xs={12}>
+                <TextField
+                  margin="dense"
+                  id="notes"
+                  name="notes"
+                  label="Notes"
+                  type="text"
+                  fullWidth
+                  variant="outlined"
+                  value={minimalCrateData.notes}
+                  onChange={handleMinimalCrateChange}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+            </Grid>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -573,6 +673,24 @@ const BatchAddCratesPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+        action={
+          <IconButton
+            size="small"
+            aria-label="close"
+            color="inherit"
+            onClick={handleSnackbarClose}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        }
+      />
     </Container>
   );
 };
