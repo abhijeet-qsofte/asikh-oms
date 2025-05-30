@@ -21,11 +21,16 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   QrCode as QrCodeIcon,
   Search as SearchIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
 import QRScanner from '../../components/qrcode/QRScanner';
 import { format } from 'date-fns';
@@ -45,7 +50,25 @@ const BatchAddCratesPage = () => {
   const [scanning, setScanning] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [manualQRCode, setManualQRCode] = useState('');
+  const [minimalCrateOpen, setMinimalCrateOpen] = useState(false);
+  const [minimalCrateData, setMinimalCrateData] = useState({
+    qr_code: '',
+    variety_id: '',
+    weight: 1.0,
+    notes: ''
+  });
+  const [varieties, setVarieties] = useState([]);
   
+  // Fetch varieties data
+  const fetchVarieties = useCallback(async () => {
+    try {
+      const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
+      setVarieties(varietiesResponse.data || []);
+    } catch (err) {
+      console.error('Error fetching varieties:', err);
+    }
+  }, []);
+
   // Fetch batch and crates data using useCallback to prevent dependency changes on every render
   const fetchBatchData = useCallback(async () => {
     try {
@@ -74,10 +97,11 @@ const BatchAddCratesPage = () => {
     }
   }, [id]);
   
-  // Load batch data on mount
+  // Load batch data and varieties on mount
   useEffect(() => {
     fetchBatchData();
-  }, [id, fetchBatchData]);
+    fetchVarieties();
+  }, [id, fetchBatchData, fetchVarieties]);
   
   // Handle QR code scan
   const handleScan = async (qrCode) => {
@@ -135,6 +159,58 @@ const BatchAddCratesPage = () => {
     handleScan(manualQRCode.trim());
     setManualQRCode('');
     setManualEntry(false);
+  };
+
+  // Handle minimal crate form changes
+  const handleMinimalCrateChange = (e) => {
+    const { name, value } = e.target;
+    setMinimalCrateData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle minimal crate submission
+  const handleMinimalCrateSubmit = async () => {
+    if (!minimalCrateData.qr_code.trim()) {
+      setError('Please enter a QR code');
+      return;
+    }
+
+    if (!minimalCrateData.variety_id) {
+      setError('Please select a mango variety');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+      
+      // Add minimal crate to batch
+      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
+      
+      // Show success message
+      setSuccess(`Crate ${minimalCrateData.qr_code} added to batch successfully`);
+      
+      // Reset form
+      setMinimalCrateData({
+        qr_code: '',
+        variety_id: '',
+        weight: 1.0,
+        notes: ''
+      });
+      
+      // Close dialog
+      setMinimalCrateOpen(false);
+      
+      // Refresh crate list
+      fetchBatchData();
+    } catch (err) {
+      console.error('Error adding minimal crate to batch:', err);
+      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      setLoading(false);
+    }
   };
   
   // Format date for display
@@ -247,6 +323,16 @@ const BatchAddCratesPage = () => {
             disabled={batch?.status !== 'open'}
           >
             Enter QR Code Manually
+          </Button>
+
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<AddIcon />}
+            onClick={() => setMinimalCrateOpen(true)}
+            disabled={batch?.status !== 'open'}
+          >
+            Add New Crate
           </Button>
         </Box>
       </Box>
@@ -379,24 +465,100 @@ const BatchAddCratesPage = () => {
         fullWidth
         maxWidth="sm"
       >
-        <DialogTitle>Enter QR Code</DialogTitle>
+        <DialogTitle>Enter QR Code Manually</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
+            id="qrCode"
             label="QR Code"
             type="text"
             fullWidth
+            variant="outlined"
             value={manualQRCode}
             onChange={(e) => setManualQRCode(e.target.value)}
-            variant="outlined"
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManualEntry(false)} color="inherit">
-            Cancel
+          <Button onClick={() => setManualEntry(false)}>Cancel</Button>
+          <Button onClick={handleManualSubmit} variant="contained" color="primary">
+            Add Crate
           </Button>
-          <Button onClick={handleManualSubmit} color="primary" variant="contained">
+        </DialogActions>
+      </Dialog>
+
+      {/* Minimal crate creation dialog */}
+      <Dialog open={minimalCrateOpen} onClose={() => setMinimalCrateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Crate with Minimal Information</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              autoFocus
+              margin="dense"
+              id="qr_code"
+              name="qr_code"
+              label="QR Code *"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={minimalCrateData.qr_code}
+              onChange={handleMinimalCrateChange}
+              sx={{ mb: 2 }}
+              required
+            />
+            
+            <FormControl fullWidth sx={{ mb: 2 }}>
+              <InputLabel id="variety-label">Mango Variety *</InputLabel>
+              <Select
+                labelId="variety-label"
+                id="variety_id"
+                name="variety_id"
+                value={minimalCrateData.variety_id}
+                label="Mango Variety *"
+                onChange={handleMinimalCrateChange}
+                required
+              >
+                {varieties.map((variety) => (
+                  <MenuItem key={variety.id} value={variety.id}>
+                    {variety.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <TextField
+              margin="dense"
+              id="weight"
+              name="weight"
+              label="Weight (kg)"
+              type="number"
+              fullWidth
+              variant="outlined"
+              value={minimalCrateData.weight}
+              onChange={handleMinimalCrateChange}
+              sx={{ mb: 2 }}
+              InputProps={{ inputProps: { min: 0.1, step: 0.1 } }}
+              helperText="Default is 1.0 kg if not specified"
+            />
+            
+            <TextField
+              margin="dense"
+              id="notes"
+              name="notes"
+              label="Notes"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={minimalCrateData.notes}
+              onChange={handleMinimalCrateChange}
+              multiline
+              rows={2}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMinimalCrateOpen(false)}>Cancel</Button>
+          <Button onClick={handleMinimalCrateSubmit} variant="contained" color="primary">
             Add Crate
           </Button>
         </DialogActions>

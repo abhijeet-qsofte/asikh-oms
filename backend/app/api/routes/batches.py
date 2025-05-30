@@ -29,6 +29,9 @@ VALID_BATCH_TRANSITIONS = {
     "closed": []
 }
 
+# Default weight for crates if not specified
+DEFAULT_CRATE_WEIGHT = 1.0
+
 # Helper function to validate batch status transitions
 def validate_batch_transition(current_status, new_status):
     """Validate if a batch status transition is allowed"""
@@ -48,31 +51,33 @@ from app.schemas.batch import (
     BatchStatsResponse,
     BatchCrateList
 )
+from app.schemas.crate import CrateMinimalCreate, CrateResponse
+from app.models.qr_code import QRCode
 
-router = APIRouter()
+router = APIRouter(prefix="/batches", tags=["batches"])
 logger = logging.getLogger(__name__)
 
 # Helper function to get reconciliation status for a batch
 def get_reconciliation_status(batch_id, batch, db=None):
     if batch.status != "delivered":
         return None
-        
+
     try:
         # Get total crates in batch
         total_crates = batch.total_crates or 0
-        
+
         if db is None:
             return f"0/{total_crates} crates (0%)"
-        
+
         # Get reconciled crates count from the database
         reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
             CrateReconciliation.batch_id == batch_id,
             CrateReconciliation.is_reconciled == True
         ).scalar() or 0
-        
+
         # Calculate reconciliation percentage
         percentage = (reconciled_crates / total_crates * 100) if total_crates > 0 else 0
-        
+
         # Format the reconciliation status
         return f"{reconciled_crates}/{total_crates} crates ({int(percentage)}%)"
     except Exception as e:
@@ -96,51 +101,51 @@ async def get_batch_reconciliation_status(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Batch not found"
             )
-        
+
         # Get reconciliation status text
         reconciliation_status = get_reconciliation_status(batch_id, batch, db)
-        
+
         is_fully_reconciled = False
-        
+
         # Only delivered batches can be reconciled
         if batch.status == "delivered":
             # Get total crates in batch
             total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
-            
+
             # Get reconciled crates count from the database
             reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
                 CrateReconciliation.batch_id == batch_id,
                 CrateReconciliation.is_reconciled == True
             ).scalar() or 0
-            
+
             # Check if all crates are reconciled
             is_fully_reconciled = reconciled_crates == total_crates and total_crates > 0
-        
+
         # Get total and reconciled crates count from the database
         total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar() or 0
-        
+
         # Get detailed information about crates in this batch
         crates_in_batch = db.query(Crate).filter(Crate.batch_id == batch_id).all()
         crate_ids = [str(crate.id) for crate in crates_in_batch]
         crate_qr_codes = [crate.qr_code for crate in crates_in_batch]
-        
+
         logger.info(f"Crates in batch {batch_id}: {crate_ids}")
         logger.info(f"QR codes in batch {batch_id}: {crate_qr_codes}")
-        
+
         # Get reconciled crates with detailed information
         reconciled_records = db.query(CrateReconciliation).filter(
             CrateReconciliation.batch_id == batch_id,
             CrateReconciliation.is_reconciled == True
         ).all()
-        
+
         reconciled_qr_codes = [rec.qr_code for rec in reconciled_records]
         reconciled_crate_ids = [str(rec.crate_id) for rec in reconciled_records]
-        
+
         logger.info(f"Reconciled QR codes for batch {batch_id}: {reconciled_qr_codes}")
         logger.info(f"Reconciled crate IDs for batch {batch_id}: {reconciled_crate_ids}")
-        
+
         reconciled_count = len(reconciled_records)
-        
+
         # Return the reconciliation status
         return {
             "batch_id": str(batch_id),
@@ -177,7 +182,7 @@ async def create_batch(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Supervisor with ID {batch_data.supervisor_id} not found"
             )
-        
+
         # Verify the farm exists - this is mandatory
         farm = db.query(Farm).filter(Farm.id == batch_data.from_location).first()
         if not farm:
@@ -185,7 +190,7 @@ async def create_batch(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Farm with ID {batch_data.from_location} not found"
             )
-        
+
         # Verify the packhouse exists if provided
         packhouse = None
         if batch_data.to_location:
@@ -195,17 +200,17 @@ async def create_batch(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Packhouse with ID {batch_data.to_location} not found"
                 )
-        
+
         # Generate batch code if not provided
         if not batch_data.batch_code:
             # Format: BATCH-{YYYYMMDD}-{sequential number}
             date_str = datetime.utcnow().strftime("%Y%m%d")
-            
+
             # Find the max batch number for today
             latest_batch = db.query(Batch).filter(
                 Batch.batch_code.like(f"BATCH-{date_str}-%")
             ).order_by(desc(Batch.batch_code)).first()
-            
+
             if latest_batch:
                 # Extract the number and increment
                 try:
@@ -214,11 +219,11 @@ async def create_batch(
                     batch_num = 1
             else:
                 batch_num = 1
-            
+
             batch_code = f"BATCH-{date_str}-{batch_num:03d}"
         else:
             batch_code = batch_data.batch_code
-            
+
             # Check if batch code already exists
             existing_batch = db.query(Batch).filter(Batch.batch_code == batch_code).first()
             if existing_batch:
@@ -226,7 +231,7 @@ async def create_batch(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Batch with code {batch_code} already exists"
                 )
-        
+
         # Create new batch
         new_batch = Batch(
             batch_code=batch_code,
@@ -245,13 +250,13 @@ async def create_batch(
             total_crates=0,
             total_weight=0  # Initialize with zero, will be calculated as crates are added
         )
-        
+
         db.add(new_batch)
         db.commit()
         db.refresh(new_batch)
-        
+
         logger.info(f"Batch {batch_code} created by user {current_user.username}")
-        
+
         # Prepare response with additional information
         return {
             "id": new_batch.id,
@@ -274,11 +279,11 @@ async def create_batch(
             "notes": new_batch.notes,
             "created_at": new_batch.created_at
         }
-        
+
     except HTTPException as e:
         # Re-raise HTTP exceptions
         raise
-    
+
     except Exception as e:
         logger.error(f"Error creating batch: {str(e)}")
         db.rollback()
@@ -302,12 +307,12 @@ async def get_batch(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     # Get related entities
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     return {
         "id": batch.id,
         "batch_code": batch.batch_code,
@@ -348,12 +353,12 @@ async def get_batch_by_code(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Batch with code {batch_code} not found"
         )
-    
+
     # Get related entities
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     return {
         "id": batch.id,
         "batch_code": batch.batch_code,
@@ -397,34 +402,34 @@ async def list_batches(
     """
     # Build query with filters
     query = db.query(Batch)
-    
+
     if status:
         query = query.filter(Batch.status == status)
-    
+
     if from_date:
         query = query.filter(Batch.created_at >= from_date)
-    
+
     if to_date:
         query = query.filter(Batch.created_at <= to_date)
-    
+
     if from_location:
         query = query.filter(Batch.from_location == from_location)
-    
+
     if to_location:
         query = query.filter(Batch.to_location == to_location)
-    
+
     if supervisor_id:
         query = query.filter(Batch.supervisor_id == supervisor_id)
-    
+
     # Count total matching batches
     total_count = query.count()
-    
+
     # Apply pagination
     batches = query.order_by(desc(Batch.created_at))\
                   .offset((page - 1) * page_size)\
                   .limit(page_size)\
                   .all()
-    
+
     # Prepare response items with related data
     result_items = []
     for batch in batches:
@@ -432,52 +437,52 @@ async def list_batches(
         supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
         farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
         packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-        
+
         # Get reconciliation stats for the batch if it's delivered or closed
         weight_differential = None
         weight_loss_percentage = None
         reconciliation_status = None
-        
+
         if batch.status in ['delivered', 'closed']:
             # Get total crates in batch
             total_crates = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch.id).scalar() or 0
-            
+
             # Get reconciled crates count from the database
             reconciled_crates = db.query(func.count(CrateReconciliation.id)).filter(
                 CrateReconciliation.batch_id == batch.id,
                 CrateReconciliation.is_reconciled == True
             ).scalar() or 0
-            
+
             # Calculate reconciliation percentage
             reconciliation_percentage = round((reconciled_crates / total_crates * 100) if total_crates > 0 else 0, 2)
             reconciliation_status = f"{reconciled_crates}/{total_crates} ({reconciliation_percentage}%)"
-            
+
             # Get weight statistics
             total_original_weight = db.query(func.sum(Crate.weight)).filter(Crate.batch_id == batch.id).scalar() or 0
             total_reconciled_weight = db.query(func.sum(CrateReconciliation.weight)).filter(
                 CrateReconciliation.batch_id == batch.id,
                 CrateReconciliation.is_reconciled == True
             ).scalar() or 0
-            
+
             # Check if there are any reconciled crates
             reconciled_crates_count = db.query(func.count(CrateReconciliation.id)).filter(
                 CrateReconciliation.batch_id == batch.id,
                 CrateReconciliation.is_reconciled == True
             ).scalar() or 0
-            
+
             if reconciled_crates_count > 0:
                 # Get the weight differential from the database
                 total_weight_differential = db.query(func.sum(CrateReconciliation.weight_differential)).filter(
                     CrateReconciliation.batch_id == batch.id,
                     CrateReconciliation.is_reconciled == True
                 ).scalar()
-                
+
                 # If the database doesn't have the differential (older records), calculate it
                 if total_weight_differential is None:
                     total_weight_differential = total_reconciled_weight - total_original_weight
-                
+
                 weight_differential = round(total_weight_differential, 2)
-                
+
                 # Calculate the percentage only if there's original weight
                 if total_original_weight > 0:
                     weight_loss_percentage = round((total_weight_differential / total_original_weight * 100), 2)
@@ -486,7 +491,7 @@ async def list_batches(
             else:
                 weight_differential = 0
                 weight_loss_percentage = 0
-        
+
         result_items.append({
             "id": batch.id,
             "batch_code": batch.batch_code,
@@ -514,7 +519,7 @@ async def list_batches(
             "notes": batch.notes,
             "created_at": batch.created_at
         })
-    
+
     return {
         "total": total_count,
         "page": page,
@@ -538,7 +543,7 @@ async def update_batch(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     try:
         # Update fields if provided
         if batch_data.supervisor_id is not None:
@@ -550,33 +555,33 @@ async def update_batch(
                     detail=f"Supervisor with ID {batch_data.supervisor_id} not found"
                 )
             batch.supervisor_id = batch_data.supervisor_id
-        
+
         if batch_data.transport_mode is not None:
             batch.transport_mode = batch_data.transport_mode
-        
+
         if batch_data.vehicle_number is not None:
             batch.vehicle_number = batch_data.vehicle_number
-        
+
         if batch_data.driver_name is not None:
             batch.driver_name = batch_data.driver_name
-        
+
         if batch_data.eta is not None:
             batch.eta = batch_data.eta
-        
+
         if batch_data.departure_time is not None:
             batch.departure_time = batch_data.departure_time
-            
+
             # If setting departure time, also update status to in_transit if currently open
             if batch.status == "open":
                 batch.status = "in_transit"
-        
+
         if batch_data.arrival_time is not None:
             batch.arrival_time = batch_data.arrival_time
-            
+
             # If setting arrival time, also update status to delivered if currently in_transit
             if batch.status == "in_transit":
                 batch.status = "delivered"
-        
+
         if batch_data.status is not None:
             # Validate status transitions using the helper function
             is_valid, error_message = validate_batch_transition(batch.status, batch_data.status)
@@ -585,46 +590,46 @@ async def update_batch(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=error_message
                 )
-            
+
             # Handle automatic timestamp updates
             if batch_data.status == "in_transit" and batch.status == "open":
                 if batch.departure_time is None:
                     batch.departure_time = datetime.utcnow()
-            
+
             if batch_data.status == "arrived" and batch.status in ["open", "in_transit"]:
                 if batch.arrival_time is None:
                     batch.arrival_time = datetime.utcnow()
-            
+
             # Role-based permissions for status changes
             if batch_data.status == "delivered" and current_user.role not in ["admin", "packhouse", "manager"]:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only admins, packhouse users, or managers can mark a batch as delivered"
                 )
-            
+
             # Special case for closed - only admin or packhouse can close a batch
             if batch_data.status == "closed" and current_user.role not in ["admin", "packhouse"]:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only admins or packhouse users can close a batch"
                 )
-            
+
             # Update the status
             batch.status = batch_data.status
-        
+
         if batch_data.notes is not None:
             batch.notes = batch_data.notes
-        
+
         db.commit()
         db.refresh(batch)
-        
+
         logger.info(f"Batch {batch.batch_code} updated by user {current_user.username}")
-        
+
         # Get related entities for response
         supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
         farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
         packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-        
+
         return {
             "id": batch.id,
             "batch_code": batch.batch_code,
@@ -646,11 +651,11 @@ async def update_batch(
             "notes": batch.notes,
             "created_at": batch.created_at
         }
-    
+
     except HTTPException as e:
         # Re-raise HTTP exceptions
         raise
-    
+
     except Exception as e:
         logger.error(f"Error updating batch: {str(e)}")
         db.rollback()
@@ -674,39 +679,39 @@ async def mark_batch_departed(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     if batch.status != "open":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot mark departure for batch with status '{batch.status}'"
         )
-    
+
     # Check if required fields for dispatch are present
     if not batch.transport_mode:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Transport mode is required to dispatch a batch"
         )
-    
+
     if not batch.to_location:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Destination (to_location) is required to dispatch a batch"
         )
-    
+
     # Update batch
     batch.status = "in_transit"
     batch.departure_time = datetime.utcnow()
     db.commit()
     db.refresh(batch)
-    
+
     logger.info(f"Batch {batch.batch_code} marked as departed by user {current_user.username}")
-    
+
     # Get related entities for response
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     return {
         "id": batch.id,
         "batch_code": batch.batch_code,
@@ -744,34 +749,33 @@ async def mark_batch_arrived(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     if batch.status not in ["open", "in_transit"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot mark arrival for batch with status '{batch.status}'"
         )
-    
+
     # Update batch - use 'arrived' status instead of 'delivered'
     batch.status = "arrived"
     batch.arrival_time = datetime.utcnow()
-    
+
     # If departure was not recorded, record it now
     if batch.departure_time is None:
         batch.departure_time = batch.arrival_time
-        
+
     logger.info(f"Batch {batch.batch_code} marked as ARRIVED by user {current_user.username}. Ready for reconciliation.")
 
-    
     db.commit()
     db.refresh(batch)
-    
+
     logger.info(f"Batch {batch.batch_code} marked as arrived by user {current_user.username}")
-    
+
     # Get related entities for response
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     return {
         "id": batch.id,
         "batch_code": batch.batch_code,
@@ -812,21 +816,21 @@ async def get_batch_crates(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     # Query crates
     crates_query = db.query(Crate).filter(Crate.batch_id == batch_id)
-    
+
     # Count total crates
     total_count = crates_query.count()
-    
+
     # Apply pagination
     crates = crates_query.offset((page - 1) * page_size).limit(page_size).all()
-    
+
     # Get batch information
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     # Batch info
     batch_info = {
         "id": batch.id,
@@ -838,13 +842,13 @@ async def get_batch_crates(
         "total_crates": batch.total_crates,
         "total_weight": batch.total_weight
     }
-    
+
     # Prepare crate data
     crate_items = []
     for crate in crates:
         # Get crate supervisor
         crate_supervisor = db.query(User).filter(User.id == crate.supervisor_id).first()
-        
+
         # Check if crate has been reconciled
         reconciled = db.query(ReconciliationLog).filter(
             and_(
@@ -853,7 +857,7 @@ async def get_batch_crates(
                 ReconciliationLog.status == "matched"
             )
         ).first() is not None
-        
+
         crate_items.append({
             "id": crate.id,
             "qr_code": crate.qr_code,
@@ -864,7 +868,7 @@ async def get_batch_crates(
             "reconciled": reconciled,
             "quality_grade": crate.quality_grade
         })
-    
+
     return {
         "batch": batch_info,
         "total": total_count,
@@ -889,10 +893,10 @@ async def get_batch_stats(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Batch not found"
         )
-    
+
     # Get crate statistics
     crate_count = db.query(func.count(Crate.id)).filter(Crate.batch_id == batch_id).scalar()
-    
+
     # Get variety distribution
     variety_counts = db.query(
         Crate.variety_id,
@@ -902,7 +906,7 @@ async def get_batch_stats(
     ).group_by(
         Crate.variety_id
     ).all()
-    
+
     # Get quality grade distribution
     grade_counts = db.query(
         Crate.quality_grade,
@@ -912,7 +916,7 @@ async def get_batch_stats(
     ).group_by(
         Crate.quality_grade
     ).all()
-    
+
     # Get reconciliation status
     reconciled_count = db.query(func.count(ReconciliationLog.id)).filter(
         and_(
@@ -920,35 +924,35 @@ async def get_batch_stats(
             ReconciliationLog.status == "matched"
         )
     ).scalar()
-    
+
     # Calculate reconciliation percentage
     reconciliation_percentage = (reconciled_count / crate_count * 100) if crate_count > 0 else 0
-    
+
     # Determine if batch is fully reconciled
     is_fully_reconciled = reconciled_count == crate_count if crate_count > 0 else False
-    
+
     # Format variety distribution with names
     variety_distribution = {}
     for variety_id, count in variety_counts:
         variety = db.query(Variety).filter(Variety.id == variety_id).first()
         variety_name = variety.name if variety else "Unknown"
         variety_distribution[variety_name] = count
-    
+
     # Format quality grade distribution
     grade_distribution = {}
     for grade, count in grade_counts:
         grade_distribution[grade or "Ungraded"] = count
-    
+
     # Get timing information
     transit_time = None
     if batch.departure_time and batch.arrival_time:
         transit_time = (batch.arrival_time - batch.departure_time).total_seconds() / 60  # in minutes
-    
+
     # Get batch basic info
     supervisor = db.query(User).filter(User.id == batch.supervisor_id).first()
     farm = db.query(Farm).filter(Farm.id == batch.from_location).first()
     packhouse = db.query(Packhouse).filter(Packhouse.id == batch.to_location).first()
-    
+
     return {
         "batch_id": batch.id,
         "batch_code": batch.batch_code,

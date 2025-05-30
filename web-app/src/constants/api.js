@@ -69,6 +69,7 @@ export const ENDPOINTS = {
   BATCH_CRATES: (id) => `${API_VERSION}/batches/${id}/crates`,
   BATCH_STATS: (id) => `${API_VERSION}/batches/${id}/stats`,
   BATCH_ADD_CRATE: (id) => `${API_VERSION}/batches/${id}/add-crate`,
+  BATCH_ADD_MINIMAL_CRATE: (id) => `${API_VERSION}/batches/${id}/add-minimal-crate`,
   BATCH_RECONCILE_CRATE: (id) => `${API_VERSION}/batches/${id}/reconcile-crate`,
   BATCH_RECONCILIATION_STATS: (id) => `${API_VERSION}/batches/${id}/reconciliation-stats`,
   BATCH_WEIGHT_DETAILS: (id) => `${API_VERSION}/batches/${id}/weight-details`,

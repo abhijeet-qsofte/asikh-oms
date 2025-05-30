@@ -126,3 +126,13 @@ class CrateSearch(BaseModel):
     harvest_date_from: Optional[datetime] = None
     harvest_date_to: Optional[datetime] = None
     quality_grade: Optional[str] = None
+
+
+class CrateMinimalCreate(BaseModel):
+    """Schema for creating a crate with minimal information"""
+    qr_code: str
+    variety_id: uuid.UUID
+    weight: float = Field(1.0, gt=0, description="Weight in kg, defaults to 1.0 if not provided")
+    supervisor_id: Optional[uuid.UUID] = None  # Will use current user's ID if not provided
+    farm_id: Optional[uuid.UUID] = None  # Can be derived from batch's from_location
+    notes: Optional[str] = None
