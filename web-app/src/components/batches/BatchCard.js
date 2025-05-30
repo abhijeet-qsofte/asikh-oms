@@ -10,6 +10,7 @@ import {
   Divider,
   Tooltip,
 } from '@mui/material';
+import CrateVarietiesList from '../crates/CrateVarietiesList';
 import {
   LocalShipping as BatchIcon,
   Inventory as CrateIcon,
@@ -80,36 +81,6 @@ const formatDate = (dateString) => {
   } catch (error) {
     return 'Invalid Date';
   }
-};
-
-// Format weight differential with color coding based on percentage loss
-const formatWeightDifferential = (original, reconciled) => {
-  if (
-    original === null ||
-    original === undefined ||
-    reconciled === null ||
-    reconciled === undefined
-  ) {
-    return { text: 'N/A', color: 'text.secondary' };
-  }
-
-  const differential = original - reconciled;
-  const percentage = original > 0 ? (differential / original) * 100 : 0;
-
-  // Color coding based on percentage loss
-  let color = 'success.main';
-  if (percentage > 5 && percentage <= 10) {
-    color = 'warning.main';
-  } else if (percentage > 10) {
-    color = 'error.main';
-  }
-
-  return {
-    text: `${differential.toFixed(1)} kg (${percentage.toFixed(1)}%)`,
-    color,
-    percentage: percentage.toFixed(1),
-    differential: differential.toFixed(1),
-  };
 };
 
 const BatchCard = ({ batch, onClick }) => {
@@ -190,6 +161,8 @@ const BatchCard = ({ batch, onClick }) => {
     getNestedValue(batch, 'crates.length', 0) ||
     getNestedValue(batch, 'total_crates', 0) ||
     0;
+    
+  // The crate varieties functionality has been moved to the CrateVarietiesList component
 
   // Get reconciliation status if available
   const getReconciliationStatus = () => {
@@ -323,6 +296,11 @@ const BatchCard = ({ batch, onClick }) => {
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 {getWeight()}
               </Typography>
+            </Grid>
+            
+            {/* Crate Varieties Section - Using the reusable component */}
+            <Grid item xs={12} sx={{ mt: 1 }}>
+              <CrateVarietiesList crates={batch.crates || []} showDivider={true} />
             </Grid>
 
             {(batch.status === 'RECONCILED' || batch.status === 'CLOSED') && (

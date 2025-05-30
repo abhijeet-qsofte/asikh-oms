@@ -27,6 +27,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -48,12 +51,14 @@ import { API_URL, ENDPOINTS } from '../../constants/api';
 import StatusStepper from '../../components/batches/StatusStepper';
 import QRScanner from '../../components/qrcode/QRScanner';
 import BatchEditForm from '../../components/batches/BatchEditForm';
+import CrateVarietiesList from '../../components/crates/CrateVarietiesList';
 
 const BatchDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
   const [batch, setBatch] = useState(null);
+  const [crates, setCrates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({
@@ -100,6 +105,10 @@ const BatchDetailPage = () => {
         const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
         const varietiesData = varietiesResponse.data.varieties || [];
         
+        // Fetch crates in the batch
+        const cratesResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_CRATES(id)}`);
+        const cratesData = cratesResponse.data.crates || [];
+        
         // Create a map of farms and packhouses for easy lookup
         const farmMap = {};
         farmsData.forEach(farm => {
@@ -125,7 +134,9 @@ const BatchDetailPage = () => {
           packhouse_name: batchData.packhouse_name || (batchData.packhouse_id && packhouseMap[batchData.packhouse_id] ? packhouseMap[batchData.packhouse_id].name : null),
         };
         
+        // Set state with fetched data
         setBatch(enhancedBatch);
+        setCrates(cratesData);
         setFarms(farmsData);
         setPackhouses(packhousesData);
         setVarieties(varietiesData);
@@ -755,7 +766,7 @@ const BatchDetailPage = () => {
           </Card>
           
           {/* Batch Summary Card */}
-          <Card>
+          <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Batch Summary
@@ -847,6 +858,62 @@ const BatchDetailPage = () => {
         
         {/* Right Column - Crates Table and Batch Statistics */}
         <Grid item xs={12} md={6}>
+          {/* Crates List Card */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Crates in Batch ({crates.length})
+                </Typography>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<AddBoxIcon />}
+                  onClick={() => navigate(`/batches/${id}/add-crates`)}
+                  size="small"
+                >
+                  Add Crates
+                </Button>
+              </Box>
+              
+              <Divider sx={{ mb: 2 }} />
+              
+              {/* Crate Varieties Summary */}
+              {crates.length > 0 && (
+                <Box sx={{ mb: 2 }}>
+                  <CrateVarietiesList crates={crates} showDivider={false} />
+                </Box>
+              )}
+              
+              {crates.length === 0 ? (
+                <Typography variant="body1" sx={{ py: 4, textAlign: 'center' }}>
+                  No crates have been added to this batch yet.
+                </Typography>
+              ) : (
+                <List>
+                  {crates.map((crate) => (
+                    <ListItem key={crate.id} divider>
+                      <ListItemText
+                        primary={`QR Code: ${crate.qr_code}`}
+                        secondary={
+                          <>
+                            <Typography component="span" variant="body2" color="textPrimary">
+                              Weight: {crate.weight || 'N/A'} kg
+                            </Typography>
+                            <br />
+                            <Typography component="span" variant="body2" color="textSecondary">
+                              Variety: {crate.variety_name || 'N/A'}
+                            </Typography>
+                          </>
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </CardContent>
+          </Card>
+          
           {/* Batch Statistics Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -909,99 +976,7 @@ const BatchDetailPage = () => {
             </CardContent>
           </Card>
           
-          {/* Crates Table Card */}
-          <Card sx={{ height: 'calc(100% - 200px)' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">
-                  Crates
-                </Typography>
-                {batch.status === 'PENDING' && (
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() => navigate(`/batches/${batch.id}/add-crate`)}
-                  >
-                    Add Crate
-                  </Button>
-                )}
-              </Box>
-              <Divider sx={{ mb: 2 }} />
-              
-              {batch.crates && batch.crates.length > 0 ? (
-                <TableContainer component={Paper} sx={{ maxHeight: 440 }}>
-                  <Table stickyHeader size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>QR Code</TableCell>
-                        <TableCell>Variety</TableCell>
-                        <TableCell align="right">Weight (kg)</TableCell>
-                        <TableCell align="right">Reconciled</TableCell>
-                        {batch.status === 'PENDING' && <TableCell align="right">Actions</TableCell>}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {batch.crates.map((crate) => (
-                        <TableRow key={crate.id}>
-                          <TableCell>{crate.qr_code}</TableCell>
-                          <TableCell>{crate.variety?.name || 'N/A'}</TableCell>
-                          <TableCell align="right">{crate.weight?.toFixed(1) || 'N/A'}</TableCell>
-                          <TableCell align="right">
-                            {crate.reconciled ? (
-                              <Chip
-                                label="Yes"
-                                color="success"
-                                size="small"
-                              />
-                            ) : (
-                              <Chip
-                                label="No"
-                                color="default"
-                                size="small"
-                              />
-                            )}
-                          </TableCell>
-                          {batch.status === 'PENDING' && (
-                            <TableCell align="right">
-                              <Tooltip title="Remove from batch">
-                                <IconButton
-                                  size="small"
-                                  color="error"
-                                  onClick={() => {
-                                    // Remove crate functionality would go here
-                                    alert(`Remove crate ${crate.qr_code} functionality not implemented yet`);
-                                  }}
-                                >
-                                  <DeleteIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No crates in this batch
-                  </Typography>
-                  {batch.status === 'PENDING' && (
-                    <Button
-                      variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={() => navigate(`/batches/${batch.id}/add-crate`)}
-                      sx={{ mt: 2 }}
-                    >
-                      Add Crate
-                    </Button>
-                  )}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
+          {/* No additional content needed here */}
         </Grid>
       </Grid>
       

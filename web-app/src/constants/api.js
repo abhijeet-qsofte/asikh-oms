@@ -43,14 +43,14 @@ export const ENDPOINTS = {
   VARIETY_STATS: (id) => `${API_VERSION}/varieties/${id}/stats`,
   
   // QR Code Management
-  QR_CODE: `${API_VERSION}/qr_code`,
-  QR_CODE_DETAIL: (id) => `${API_VERSION}/qr_code/${id}`,
-  QR_CODE_BY_VALUE: (value) => `${API_VERSION}/qr_code/value/${value}`,
-  QR_CODE_BATCH: `${API_VERSION}/qr_code/batch`,
-  QR_CODE_IMAGE: (value) => `${API_VERSION}/qr_code/image/${value}`,
-  QR_CODE_DOWNLOAD: `${API_VERSION}/qr_code/download`,
-  QR_CODE_DOWNLOAD_TOKEN: (token) => `${API_VERSION}/qr_code/download/${token}`,
-  QR_CODE_VALIDATE: (value) => `${API_VERSION}/qr_code/validate/${value}`,
+  QR_CODE: `${API_VERSION}/qr-codes`,
+  QR_CODE_DETAIL: (id) => `${API_VERSION}/qr-codes/${id}`,
+  QR_CODE_BY_VALUE: (value) => `${API_VERSION}/qr-codes/value/${value}`,
+  QR_CODE_BATCH: `${API_VERSION}/qr-codes/batch`,
+  QR_CODE_IMAGE: (value) => `${API_VERSION}/qr-codes/image/${value}`,
+  QR_CODE_DOWNLOAD: `${API_VERSION}/qr-codes/download`,
+  QR_CODE_DOWNLOAD_TOKEN: (token) => `${API_VERSION}/qr-codes/download/${token}`,
+  QR_CODE_VALIDATE: (value) => `${API_VERSION}/qr-codes/validate/${value}`,
   
   // Crate Management
   CRATES: `${API_VERSION}/crates`,

@@ -95,7 +95,7 @@ const BatchesPage = () => {
           packhouseMap[packhouse.id] = packhouse;
         });
         
-        // Fetch weight details for each batch and enhance batch data
+        // Fetch weight details and crates for each batch and enhance batch data
         const batchesWithDetails = await Promise.all(
           batchesData.map(async (batch) => {
             try {
@@ -104,10 +104,29 @@ const BatchesPage = () => {
                 `${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(batch.id)}`
               );
               
-              // Enhance batch with farm and packhouse objects
+              // Fetch crates in the batch
+              console.log(`Fetching crates for batch ${batch.id} from: ${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}`);
+              let cratesData = [];
+              try {
+                const cratesResponse = await axios.get(
+                  `${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}`
+                );
+                console.log('Crates response:', cratesResponse.data);
+                
+                // Extract crates from the response
+                if (cratesResponse.data && Array.isArray(cratesResponse.data.crates)) {
+                  cratesData = cratesResponse.data.crates;
+                }
+              } catch (cratesError) {
+                console.error(`Error fetching crates for batch ${batch.id}:`, cratesError);
+              }
+              
+              // Enhance batch with farm, packhouse, and crates objects
               const enhancedBatch = {
                 ...batch,
                 weight_details: weightResponse.data,
+                // Add crates data that we fetched above
+                crates: cratesData,
                 // Add farm object if farm_id exists
                 farm: batch.farm_id && farmMap[batch.farm_id] ? farmMap[batch.farm_id] : null,
                 // Add packhouse object if packhouse_id exists
@@ -118,7 +137,7 @@ const BatchesPage = () => {
                 packhouse_name: batch.packhouse_name || (batch.packhouse_id && packhouseMap[batch.packhouse_id] ? packhouseMap[batch.packhouse_id].name : null),
               };
               
-              console.log('Enhanced batch:', enhancedBatch);
+              console.log('Enhanced batch with crates:', enhancedBatch);
               return enhancedBatch;
             } catch (error) {
               console.error(`Error fetching details for batch ${batch.id}:`, error);

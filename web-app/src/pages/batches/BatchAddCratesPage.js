@@ -38,6 +38,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { format } from 'date-fns';
 import axios from 'axios';
 import { API_URL, ENDPOINTS } from '../../constants/api';
+import CrateVarietiesList from '../../components/crates/CrateVarietiesList';
 
 const BatchAddCratesPage = () => {
   const { id } = useParams();
@@ -250,7 +251,28 @@ const BatchAddCratesPage = () => {
       setError(null);
       setSuccess(null);
       
-      // Add minimal crate to batch
+      // First, check if the QR code exists in the system
+      // If not, create it first
+      const qrCode = minimalCrateData.qr_code.trim();
+      
+      try {
+        // Try to create the QR code first to ensure it exists
+        await axios.post(`${API_URL}${ENDPOINTS.QR_CODE}`, {
+          code_value: qrCode,
+          status: 'active',
+          entity_type: 'crate'
+        });
+        console.log(`Created QR code: ${qrCode}`);
+      } catch (qrError) {
+        // If error is 409 Conflict, the QR code already exists, which is fine
+        if (qrError.response?.status !== 409) {
+          console.warn('Error creating QR code, but continuing anyway:', qrError);
+        } else {
+          console.log('QR code already exists, continuing with crate creation');
+        }
+      }
+      
+      // Now add the minimal crate to the batch
       console.log('Making API request to:', `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`);
       const response = await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
       console.log('API response:', response.data);
@@ -276,7 +298,14 @@ const BatchAddCratesPage = () => {
     } catch (err) {
       console.error('Error adding minimal crate to batch:', err);
       console.error('Error details:', err.response?.data);
-      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      
+      // Check if the error is due to missing QR code in the qr_codes table
+      if (err.response?.data?.detail?.includes('violates foreign key constraint "crates_qr_code_fkey"')) {
+        setError('QR code not registered in the system. Please use a valid QR code.');
+      } else {
+        setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
+      }
+      
       setSnackbarMessage('Failed to add crate: ' + (err.response?.data?.detail || err.message));
       setSnackbarOpen(true);
       setLoading(false);
@@ -413,6 +442,13 @@ const BatchAddCratesPage = () => {
           Crates in Batch ({crates.length})
         </Typography>
         <Divider sx={{ mb: 2 }} />
+        
+        {/* Display crate varieties summary */}
+        {crates.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            <CrateVarietiesList crates={crates} showDivider={false} />
+          </Box>
+        )}
         
         {crates.length === 0 ? (
           <Typography variant="body1" sx={{ py: 4, textAlign: 'center' }}>
