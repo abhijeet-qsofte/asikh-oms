@@ -62,7 +62,7 @@ import CrateVarietiesList from '../../components/crates/CrateVarietiesList';
 const BatchDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+
   const [batch, setBatch] = useState(null);
   const [crates, setCrates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,18 +75,18 @@ const BatchDetailPage = () => {
   });
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editError, setEditError] = useState(null);
-  
+
   // Minimal crate creation state
   const [minimalCrateOpen, setMinimalCrateOpen] = useState(false);
   const [minimalCrateData, setMinimalCrateData] = useState({
     qr_code: '',
     variety_id: '',
     weight: 1.0,
-    notes: ''
+    notes: '',
   });
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  
+
   // QR code scanning state
   const [scanning, setScanning] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
@@ -98,7 +98,7 @@ const BatchDetailPage = () => {
     driver_name: '',
     eta: '',
     photo_url: '',
-    notes: ''
+    notes: '',
   });
   const [dispatchErrors, setDispatchErrors] = useState({});
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
@@ -106,13 +106,13 @@ const BatchDetailPage = () => {
   const [packhouses, setPackhouses] = useState([]);
   const [varieties, setVarieties] = useState([]);
   const [editLoading, setEditLoading] = useState(false);
-  
+
   // Handle minimal crate form changes
   const handleMinimalCrateChange = (e) => {
     const { name, value } = e.target;
-    setMinimalCrateData(prev => ({
+    setMinimalCrateData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
   };
 
@@ -132,120 +132,157 @@ const BatchDetailPage = () => {
 
     try {
       setEditLoading(true);
-      
+
       // First, check if the QR code exists in the system
       // If not, create it first
       const qrCode = minimalCrateData.qr_code.trim();
-      
+
       try {
         // Try to create the QR code first to ensure it exists
         await axios.post(`${API_URL}${ENDPOINTS.QR_CODE}`, {
           code_value: qrCode,
           status: 'active',
-          entity_type: 'crate'
+          entity_type: 'crate',
         });
         console.log(`Created QR code: ${qrCode}`);
       } catch (qrError) {
         // If error is 409 Conflict, the QR code already exists, which is fine
         if (qrError.response?.status !== 409) {
-          console.warn('Error creating QR code, but continuing anyway:', qrError);
+          console.warn(
+            'Error creating QR code, but continuing anyway:',
+            qrError
+          );
         } else {
           console.log('QR code already exists, continuing with crate creation');
         }
       }
-      
+
       // Now add the minimal crate to the batch
-      console.log('Making API request to:', `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`);
-      const response = await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`, minimalCrateData);
+      console.log(
+        'Making API request to:',
+        `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`
+      );
+      const response = await axios.post(
+        `${API_URL}${ENDPOINTS.BATCH_ADD_MINIMAL_CRATE(id)}`,
+        minimalCrateData
+      );
       console.log('API response:', response.data);
-      
+
       // Show success message
-      setSnackbarMessage(`Crate ${minimalCrateData.qr_code} added to batch successfully`);
+      setSnackbarMessage(
+        `Crate ${minimalCrateData.qr_code} added to batch successfully`
+      );
       setSnackbarOpen(true);
-      
+
       // Reset form
       setMinimalCrateData({
         qr_code: '',
         variety_id: '',
         weight: 1.0,
-        notes: ''
+        notes: '',
       });
-      
+
       // Close dialog
       setMinimalCrateOpen(false);
-      
+
       // Refresh batch data by refetching everything
       window.location.reload();
     } catch (err) {
       console.error('Error adding minimal crate to batch:', err);
       console.error('Error details:', err.response?.data);
-      
-      setSnackbarMessage(`Error adding crate: ${err.response?.data?.detail || err.message}`);
+
+      setSnackbarMessage(
+        `Error adding crate: ${err.response?.data?.detail || err.message}`
+      );
       setSnackbarOpen(true);
     } finally {
       setEditLoading(false);
     }
   };
-  
+
   // Handle snackbar close
   const handleSnackbarClose = () => {
     setSnackbarOpen(false);
   };
-  
+
   useEffect(() => {
     const fetchBatchDetails = async () => {
       try {
         setLoading(true);
-        
+
         // Fetch batch details
-        const batchResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`);
+        const batchResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`
+        );
         const batchData = batchResponse.data;
-        
+
         // Fetch weight details
-        const weightResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(id)}`);
+        const weightResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(id)}`
+        );
         const weightData = weightResponse.data;
-        
+
         // Fetch farms for edit form
         const farmsResponse = await axios.get(`${API_URL}${ENDPOINTS.FARMS}`);
         const farmsData = farmsResponse.data.farms || [];
-        
+
         // Fetch packhouses for edit form
-        const packhousesResponse = await axios.get(`${API_URL}${ENDPOINTS.PACKHOUSES}`);
+        const packhousesResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.PACKHOUSES}`
+        );
         const packhousesData = packhousesResponse.data.packhouses || [];
-        
+
         // Fetch varieties for edit form
-        const varietiesResponse = await axios.get(`${API_URL}${ENDPOINTS.VARIETIES}`);
+        const varietiesResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.VARIETIES}`
+        );
         const varietiesData = varietiesResponse.data.varieties || [];
-        
-        // Fetch crates in the batch
-        const cratesResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_CRATES(id)}`);
+
+        // Fetch crates in the batch - get up to 100 crates
+        const cratesResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.BATCH_CRATES(id)}?page=1&page_size=100`
+        );
         const cratesData = cratesResponse.data.crates || [];
-        
+
         // Create a map of farms and packhouses for easy lookup
         const farmMap = {};
-        farmsData.forEach(farm => {
+        farmsData.forEach((farm) => {
           farmMap[farm.id] = farm;
         });
-        
+
         const packhouseMap = {};
-        packhousesData.forEach(packhouse => {
+        packhousesData.forEach((packhouse) => {
           packhouseMap[packhouse.id] = packhouse;
         });
-        
+
         // Enhance batch with farm and packhouse objects
         const enhancedBatch = {
           ...batchData,
           weight_details: weightData,
           // Add farm object if farm_id exists
-          farm: batchData.farm_id && farmMap[batchData.farm_id] ? farmMap[batchData.farm_id] : null,
+          farm:
+            batchData.farm_id && farmMap[batchData.farm_id]
+              ? farmMap[batchData.farm_id]
+              : null,
           // Add packhouse object if packhouse_id exists
-          packhouse: batchData.packhouse_id && packhouseMap[batchData.packhouse_id] ? packhouseMap[batchData.packhouse_id] : null,
+          packhouse:
+            batchData.packhouse_id && packhouseMap[batchData.packhouse_id]
+              ? packhouseMap[batchData.packhouse_id]
+              : null,
           // Make sure farm_name is set
-          farm_name: batchData.farm_name || (batchData.farm_id && farmMap[batchData.farm_id] ? farmMap[batchData.farm_id].name : null),
+          farm_name:
+            batchData.farm_name ||
+            (batchData.farm_id && farmMap[batchData.farm_id]
+              ? farmMap[batchData.farm_id].name
+              : null),
           // Make sure packhouse_name is set
-          packhouse_name: batchData.packhouse_name || (batchData.packhouse_id && packhouseMap[batchData.packhouse_id] ? packhouseMap[batchData.packhouse_id].name : null),
+          packhouse_name:
+            batchData.packhouse_name ||
+            (batchData.packhouse_id && packhouseMap[batchData.packhouse_id]
+              ? packhouseMap[batchData.packhouse_id].name
+              : null),
         };
-        
+
         // Set state with fetched data
         setBatch(enhancedBatch);
         setCrates(cratesData);
@@ -259,19 +296,22 @@ const BatchDetailPage = () => {
         setLoading(false);
       }
     };
-    
+
     fetchBatchDetails();
   }, [id]);
-  
+
   const handleStatusChange = async (newStatus) => {
     try {
       setLoading(true);
-      
+
       // Update batch status
-      const response = await axios.put(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}/status`, {
-        status: newStatus,
-      });
-      
+      const response = await axios.put(
+        `${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}/status`,
+        {
+          status: newStatus,
+        }
+      );
+
       // Update local state with new data
       setBatch(response.data);
       setLoading(false);
@@ -283,7 +323,7 @@ const BatchDetailPage = () => {
       setConfirmDialog({ open: false });
     }
   };
-  
+
   const openConfirmDialog = (title, message, action) => {
     setConfirmDialog({
       open: true,
@@ -292,49 +332,51 @@ const BatchDetailPage = () => {
       action,
     });
   };
-  
+
   const closeConfirmDialog = () => {
     setConfirmDialog({
       ...confirmDialog,
       open: false,
     });
   };
-  
+
   const handleDispatch = () => {
     setDispatchDialogOpen(true);
   };
-  
+
   const handleDispatchSubmit = async () => {
     // Validate form
     const errors = {};
-    if (!dispatchData.vehicle_type) errors.vehicle_type = 'Vehicle type is required';
-    if (!dispatchData.driver_name) errors.driver_name = 'Driver name is required';
+    if (!dispatchData.vehicle_type)
+      errors.vehicle_type = 'Vehicle type is required';
+    if (!dispatchData.driver_name)
+      errors.driver_name = 'Driver name is required';
     if (!dispatchData.eta) errors.eta = 'ETA is required';
-    
+
     if (Object.keys(errors).length > 0) {
       setDispatchErrors(errors);
       return;
     }
-    
+
     setDispatchErrors({});
     setLoading(true);
-    
+
     try {
       // Format the date for API
       const formattedData = {
         ...dispatchData,
-        eta: new Date(dispatchData.eta).toISOString()
+        eta: new Date(dispatchData.eta).toISOString(),
       };
-      
+
       // Log the request details for debugging
       let url = `${API_URL}${ENDPOINTS.BATCH_DISPATCH(batch.id)}`;
       console.log('Original dispatch request URL:', url);
-      
+
       // Try alternative endpoints for debugging
       // Uncomment one of these to test alternative endpoints
       // url = `${API_URL}/api/batches/direct/${batch.id}/dispatch`;
       // url = `${API_URL}/api/batches/test-dispatch/${batch.id}`;
-      
+
       // Test the simple test endpoint first
       console.log('Testing simple endpoint first...');
       try {
@@ -343,7 +385,7 @@ const BatchDetailPage = () => {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${localStorage.getItem('token')}`,
-          }
+          },
         });
         console.log('Test endpoint response:', testResponse.status);
         if (testResponse.ok) {
@@ -353,30 +395,27 @@ const BatchDetailPage = () => {
       } catch (testErr) {
         console.error('Test endpoint error:', testErr);
       }
-      
+
       console.log('Now trying dispatch with URL:', url);
       console.log('Dispatch request data:', formattedData);
       console.log('Dispatch request method:', 'POST');
-      
-      const response = await fetch(
-        url,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-          },
-          body: JSON.stringify(formattedData),
-        }
-      );
-      
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(formattedData),
+      });
+
       console.log('Dispatch response status:', response.status);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to dispatch batch');
       }
-      
+
       const updatedBatch = await response.json();
       setBatch(updatedBatch);
       setSnackbarMessage('Batch has been dispatched successfully');
@@ -391,23 +430,23 @@ const BatchDetailPage = () => {
       setLoading(false);
     }
   };
-  
+
   const handleDispatchChange = (e) => {
     const { name, value } = e.target;
-    setDispatchData(prev => ({
+    setDispatchData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
-    
+
     // Clear error for this field if it exists
     if (dispatchErrors[name]) {
-      setDispatchErrors(prev => ({
+      setDispatchErrors((prev) => ({
         ...prev,
-        [name]: undefined
+        [name]: undefined,
       }));
     }
   };
-  
+
   const handleArrive = () => {
     openConfirmDialog(
       'Mark as Arrived',
@@ -415,7 +454,7 @@ const BatchDetailPage = () => {
       () => handleStatusChange('arrived')
     );
   };
-  
+
   const handleReconcile = () => {
     openConfirmDialog(
       'Mark as Reconciled',
@@ -423,7 +462,7 @@ const BatchDetailPage = () => {
       () => handleStatusChange('reconciled')
     );
   };
-  
+
   const handleDeliver = () => {
     openConfirmDialog(
       'Mark as Delivered',
@@ -431,7 +470,7 @@ const BatchDetailPage = () => {
       () => handleStatusChange('delivered')
     );
   };
-  
+
   const handleClose = () => {
     openConfirmDialog(
       'Close Batch',
@@ -439,50 +478,59 @@ const BatchDetailPage = () => {
       () => handleStatusChange('closed')
     );
   };
-  
+
   // Handle QR code scan to add crate to batch
-  const handleScan = useCallback(async (qrCode) => {
-    setScanning(false);
-    
-    try {
-      setLoading(true);
-      setScanSuccess(null);
-      
-      // Add crate to batch
-      await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(id)}`, { qr_code: qrCode });
-      
-      // Show success message
-      setScanSuccess(`Crate ${qrCode} added to batch successfully`);
-      
-      // Refresh batch details
-      const batchResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`);
-      setBatch(batchResponse.data);
-    } catch (err) {
-      console.error('Error adding crate to batch:', err);
-      setError('Failed to add crate: ' + (err.response?.data?.detail || err.message));
-      setLoading(false);
-    }
-  }, [id]);
-  
+  const handleScan = useCallback(
+    async (qrCode) => {
+      setScanning(false);
+
+      try {
+        setLoading(true);
+        setScanSuccess(null);
+
+        // Add crate to batch
+        await axios.post(`${API_URL}${ENDPOINTS.BATCH_ADD_CRATE(id)}`, {
+          qr_code: qrCode,
+        });
+
+        // Show success message
+        setScanSuccess(`Crate ${qrCode} added to batch successfully`);
+
+        // Refresh batch details
+        const batchResponse = await axios.get(
+          `${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`
+        );
+        setBatch(batchResponse.data);
+      } catch (err) {
+        console.error('Error adding crate to batch:', err);
+        setError(
+          'Failed to add crate: ' + (err.response?.data?.detail || err.message)
+        );
+        setLoading(false);
+      }
+    },
+    [id]
+  );
+
   // Handle manual QR code entry
   const handleManualSubmit = () => {
     if (!manualQRCode.trim()) {
       setError('Please enter a QR code');
       return;
     }
-    
+
     handleScan(manualQRCode.trim());
     setManualQRCode('');
     setManualEntry(false);
   };
-  
+
   const handleDelete = async () => {
     try {
       setLoading(true);
-      
+
       // Delete batch
       await axios.delete(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`);
-      
+
       // Navigate back to batches page
       navigate('/batches');
     } catch (error) {
@@ -492,30 +540,30 @@ const BatchDetailPage = () => {
       setConfirmDialog({ open: false });
     }
   };
-  
+
   // Handle opening the edit dialog
   const handleEditClick = () => {
     setEditDialogOpen(true);
     setEditError(null);
   };
-  
+
   // Handle closing the edit dialog
   const handleEditClose = () => {
     setEditDialogOpen(false);
   };
-  
+
   // Handle saving batch edits
   const handleSaveBatch = async (formData) => {
     try {
       setEditLoading(true);
       setEditError(null);
-      
+
       // Format dates for API
       const formatDate = (date) => {
         if (!date) return null;
         return new Date(date).toISOString();
       };
-      
+
       const updatedBatch = {
         ...formData,
         created_at: formatDate(formData.created_at),
@@ -524,25 +572,31 @@ const BatchDetailPage = () => {
         reconciled_at: formatDate(formData.reconciled_at),
         closed_at: formatDate(formData.closed_at),
       };
-      
+
       // Update batch
-      const response = await axios.put(`${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`, updatedBatch);
-      
+      const response = await axios.put(
+        `${API_URL}${ENDPOINTS.BATCH_DETAIL(id)}`,
+        updatedBatch
+      );
+
       // Update local state with new data
       setBatch({
         ...batch,
         ...response.data,
       });
-      
+
       setEditLoading(false);
       setEditDialogOpen(false);
     } catch (error) {
       console.error('Error updating batch:', error);
-      setEditError('Failed to update batch: ' + (error.response?.data?.detail || error.message));
+      setEditError(
+        'Failed to update batch: ' +
+          (error.response?.data?.detail || error.message)
+      );
       setEditLoading(false);
     }
   };
-  
+
   const confirmDelete = () => {
     openConfirmDialog(
       'Delete Batch',
@@ -550,7 +604,7 @@ const BatchDetailPage = () => {
       handleDelete
     );
   };
-  
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -559,17 +613,18 @@ const BatchDetailPage = () => {
       return 'Invalid Date';
     }
   };
-  
+
   // Format status label for display
   const formatStatus = (status) => {
     if (!status) return 'Unknown';
-    
+
     // Convert snake_case to Title Case
-    return status.split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    return status
+      .split('_')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   };
-  
+
   // Get status color
   const getStatusColor = (status) => {
     switch (status) {
@@ -587,15 +642,20 @@ const BatchDetailPage = () => {
         return 'default';
     }
   };
-  
+
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="80vh"
+      >
         <CircularProgress />
       </Box>
     );
   }
-  
+
   if (error) {
     return (
       <Container maxWidth="lg">
@@ -612,7 +672,7 @@ const BatchDetailPage = () => {
       </Container>
     );
   }
-  
+
   if (!batch) {
     return (
       <Container maxWidth="lg">
@@ -629,14 +689,14 @@ const BatchDetailPage = () => {
       </Container>
     );
   }
-  
+
   // Helper function to safely get nested properties
   const getNestedValue = (obj, path, defaultValue = 'N/A') => {
     if (!obj) return defaultValue;
-    
+
     // Handle both string paths and array paths
     const parts = typeof path === 'string' ? path.split('.') : path;
-    
+
     let result = obj;
     for (const part of parts) {
       if (result == null || result[part] === undefined) {
@@ -644,42 +704,51 @@ const BatchDetailPage = () => {
       }
       result = result[part];
     }
-    
+
     return result === null || result === undefined ? defaultValue : result;
   };
-  
+
   // Get farm name from various possible locations in the data structure
   const getFarmName = () => {
     // Try all possible paths where farm name might be stored
-    return getNestedValue(batch, 'farm.name') || 
-           getNestedValue(batch, 'farm_name') || 
-           getNestedValue(batch, 'farm_id.name') || 
-           getNestedValue(batch, 'from_location_name') || 
-           'N/A';
+    return (
+      getNestedValue(batch, 'farm.name') ||
+      getNestedValue(batch, 'farm_name') ||
+      getNestedValue(batch, 'farm_id.name') ||
+      getNestedValue(batch, 'from_location_name') ||
+      'N/A'
+    );
   };
-  
+
   // Get packhouse name from various possible locations
   const getPackhouseName = () => {
-    return getNestedValue(batch, 'packhouse.name') || 
-           getNestedValue(batch, 'packhouse_name') || 
-           getNestedValue(batch, 'packhouse_id.name') || 
-           getNestedValue(batch, 'to_location_name') || 
-           'N/A';
+    return (
+      getNestedValue(batch, 'packhouse.name') ||
+      getNestedValue(batch, 'packhouse_name') ||
+      getNestedValue(batch, 'packhouse_id.name') ||
+      getNestedValue(batch, 'to_location_name') ||
+      'N/A'
+    );
   };
-  
+
   // Debug batch data structure
   console.log('Batch detail data:', batch);
   console.log('Farm name:', getFarmName());
   console.log('Packhouse name:', getPackhouseName());
-  
+
   // Calculate weight differential
-  const originalWeight = batch.weight_details?.original_weight || batch.total_weight || batch.weight || 0;
+  const originalWeight =
+    batch.weight_details?.original_weight ||
+    batch.total_weight ||
+    batch.weight ||
+    0;
   const reconciledWeight = batch.weight_details?.reconciled_weight || 0;
   const weightDifferential = originalWeight - reconciledWeight;
-  const weightDifferentialPercentage = originalWeight > 0 
-    ? ((weightDifferential / originalWeight) * 100).toFixed(1)
-    : 0;
-  
+  const weightDifferentialPercentage =
+    originalWeight > 0
+      ? ((weightDifferential / originalWeight) * 100).toFixed(1)
+      : 0;
+
   // Calculate reconciliation progress
   const totalCrates = batch.crates?.length || 0;
   const reconciledCrates = batch.weight_details?.reconciled_crates || 0;
@@ -706,7 +775,7 @@ const BatchDetailPage = () => {
             sx={{ ml: 2, fontWeight: 500 }}
           />
         </Box>
-        
+
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           {batch.status === 'open' && (
             <>
@@ -749,7 +818,7 @@ const BatchDetailPage = () => {
               </Button>
             </>
           )}
-          
+
           {batch.status === 'in_transit' && (
             <Button
               variant="contained"
@@ -760,7 +829,7 @@ const BatchDetailPage = () => {
               Mark as Arrived
             </Button>
           )}
-          
+
           {batch.status === 'arrived' && (
             <>
               <Button
@@ -789,7 +858,7 @@ const BatchDetailPage = () => {
               </Button>
             </>
           )}
-          
+
           {batch.status === 'reconciled' && (
             <Button
               variant="contained"
@@ -800,7 +869,7 @@ const BatchDetailPage = () => {
               Mark as Delivered
             </Button>
           )}
-          
+
           {batch.status === 'delivered' && (
             <Button
               variant="contained"
@@ -811,7 +880,7 @@ const BatchDetailPage = () => {
               Close Batch
             </Button>
           )}
-          
+
           <Button
             variant="outlined"
             startIcon={<PrintIcon />}
@@ -819,7 +888,7 @@ const BatchDetailPage = () => {
           >
             Print
           </Button>
-          
+
           <Button
             variant="outlined"
             startIcon={<ShareIcon />}
@@ -830,7 +899,7 @@ const BatchDetailPage = () => {
           >
             Share
           </Button>
-          
+
           {/* Edit button for all statuses except PENDING (which has its own edit button above) */}
           {batch.status !== 'PENDING' && (
             <Button
@@ -843,7 +912,7 @@ const BatchDetailPage = () => {
           )}
         </Box>
       </Box>
-      
+
       {/* Status Stepper */}
       <Box sx={{ mb: 4 }}>
         <StatusStepper
@@ -855,7 +924,7 @@ const BatchDetailPage = () => {
           closedAt={batch.closed_at}
         />
       </Box>
-      
+
       {/* Batch Details */}
       <Grid container spacing={3}>
         {/* Left Column - Batch Information */}
@@ -866,7 +935,7 @@ const BatchDetailPage = () => {
                 Batch Information
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
@@ -876,7 +945,7 @@ const BatchDetailPage = () => {
                     {getFarmName()}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Packhouse
@@ -885,7 +954,7 @@ const BatchDetailPage = () => {
                     {getPackhouseName()}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Created At
@@ -894,7 +963,7 @@ const BatchDetailPage = () => {
                     {formatDate(batch.created_at)}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Created By
@@ -903,7 +972,7 @@ const BatchDetailPage = () => {
                     {batch.created_by?.name || batch.supervisor_name || 'N/A'}
                   </Typography>
                 </Grid>
-                
+
                 {batch.departed_at && (
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">
@@ -914,7 +983,7 @@ const BatchDetailPage = () => {
                     </Typography>
                   </Grid>
                 )}
-                
+
                 {batch.arrived_at && (
                   <Grid item xs={6}>
                     <Typography variant="body2" color="text.secondary">
@@ -925,21 +994,19 @@ const BatchDetailPage = () => {
                     </Typography>
                   </Grid>
                 )}
-                
+
                 {batch.notes && (
                   <Grid item xs={12}>
                     <Typography variant="body2" color="text.secondary">
                       Notes
                     </Typography>
-                    <Typography variant="body1">
-                      {batch.notes}
-                    </Typography>
+                    <Typography variant="body1">{batch.notes}</Typography>
                   </Grid>
                 )}
               </Grid>
             </CardContent>
           </Card>
-          
+
           {/* Farm Data Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -947,7 +1014,7 @@ const BatchDetailPage = () => {
                 Farm Information
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
@@ -957,7 +1024,7 @@ const BatchDetailPage = () => {
                     {batch.from_location_name || 'N/A'}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Farm ID
@@ -966,20 +1033,25 @@ const BatchDetailPage = () => {
                     {batch.from_location || 'N/A'}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={12}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 1 }}
+                  >
                     Farm Data Association
                   </Typography>
                   <Typography variant="body1">
-                    All crates in this batch are associated with {batch.from_location_name}.
-                    This ensures proper tracking and reporting of farm data throughout the supply chain.
+                    All crates in this batch are associated with{' '}
+                    {batch.from_location_name}. This ensures proper tracking and
+                    reporting of farm data throughout the supply chain.
                   </Typography>
                 </Grid>
               </Grid>
             </CardContent>
           </Card>
-          
+
           {/* Batch Summary Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -987,29 +1059,44 @@ const BatchDetailPage = () => {
                 Batch Summary
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
-              <Box sx={{ display: 'flex', justifyContent: 'space-around', mb: 3, mt: 2 }}>
+
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  mb: 3,
+                  mt: 2,
+                }}
+              >
                 <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: 'bold', color: 'primary.main' }}
+                  >
                     {batch.total_crates || 0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Crates
                   </Typography>
                 </Box>
-                
+
                 <Box sx={{ textAlign: 'center' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                    {batch.total_weight ? `${batch.total_weight.toFixed(1)}` : '0'}
+                  <Typography
+                    variant="h4"
+                    sx={{ fontWeight: 'bold', color: 'primary.main' }}
+                  >
+                    {batch.total_weight
+                      ? `${batch.total_weight.toFixed(1)}`
+                      : '0'}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Total Weight (kg)
                   </Typography>
                 </Box>
               </Box>
-              
+
               <Divider sx={{ mb: 2 }} />
-              
+
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
@@ -1019,7 +1106,7 @@ const BatchDetailPage = () => {
                     {reconciledCrates}/{totalCrates}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Original Weight
@@ -1028,40 +1115,50 @@ const BatchDetailPage = () => {
                     {originalWeight ? `${originalWeight.toFixed(1)} kg` : 'N/A'}
                   </Typography>
                 </Grid>
-                
+
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
                     Reconciled Weight
                   </Typography>
                   <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                    {reconciledWeight ? `${reconciledWeight.toFixed(1)} kg` : 'N/A'}
+                    {reconciledWeight
+                      ? `${reconciledWeight.toFixed(1)} kg`
+                      : 'N/A'}
                   </Typography>
                 </Grid>
-                
-                {(batch.status === 'RECONCILED' || batch.status === 'CLOSED') && (
+
+                {(batch.status === 'RECONCILED' ||
+                  batch.status === 'CLOSED') && (
                   <Grid item xs={12}>
-                    <Box 
-                      sx={{ 
-                        p: 2, 
-                        bgcolor: weightDifferential > 0 ? 'error.light' : 'success.light',
+                    <Box
+                      sx={{
+                        p: 2,
+                        bgcolor:
+                          weightDifferential > 0
+                            ? 'error.light'
+                            : 'success.light',
                         borderRadius: 1,
-                        mt: 1
+                        mt: 1,
                       }}
                     >
                       <Typography variant="body2" color="text.secondary">
                         Weight Differential
                       </Typography>
-                      <Typography 
-                        variant="h6" 
-                        sx={{ 
+                      <Typography
+                        variant="h6"
+                        sx={{
                           fontWeight: 500,
-                          color: weightDifferential > 0 ? 'error.dark' : 'success.dark'
+                          color:
+                            weightDifferential > 0
+                              ? 'error.dark'
+                              : 'success.dark',
                         }}
                       >
-                        {weightDifferential > 0 
-                          ? `${weightDifferential.toFixed(1)} kg (${weightDifferentialPercentage}% loss)`
-                          : 'No weight loss'
-                        }
+                        {weightDifferential > 0
+                          ? `${weightDifferential.toFixed(
+                              1
+                            )} kg (${weightDifferentialPercentage}% loss)`
+                          : 'No weight loss'}
                       </Typography>
                     </Box>
                   </Grid>
@@ -1070,20 +1167,29 @@ const BatchDetailPage = () => {
             </CardContent>
           </Card>
         </Grid>
-        
+
         {/* Right Column - Crates Table and Batch Statistics */}
         <Grid item xs={12} md={6}>
           {/* Crates List Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box
+                sx={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  mb: 2,
+                }}
+              >
                 <Typography variant="h6" gutterBottom>
                   Crates in Batch ({crates.length})
                 </Typography>
-                
+
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Tooltip title="Coming soon - This feature is under development">
-                    <span> {/* Wrapper needed for disabled button tooltip */}
+                    <span>
+                      {' '}
+                      {/* Wrapper needed for disabled button tooltip */}
                       <Button
                         variant="contained"
                         color="secondary"
@@ -1091,12 +1197,13 @@ const BatchDetailPage = () => {
                         disabled={true}
                         size="small"
                         sx={{
-                          background: 'linear-gradient(45deg, #FF8E53 30%, #FE6B8B 90%)',
+                          background:
+                            'linear-gradient(45deg, #FF8E53 30%, #FE6B8B 90%)',
                           opacity: 0.7,
                           '&.Mui-disabled': {
                             color: 'white',
-                            opacity: 0.5
-                          }
+                            opacity: 0.5,
+                          },
                         }}
                       >
                         New Crate
@@ -1113,16 +1220,16 @@ const BatchDetailPage = () => {
                   </Button>
                 </Box>
               </Box>
-              
+
               <Divider sx={{ mb: 2 }} />
-              
+
               {/* Crate Varieties Summary */}
               {crates.length > 0 && (
                 <Box sx={{ mb: 2 }}>
                   <CrateVarietiesList crates={crates} showDivider={false} />
                 </Box>
               )}
-              
+
               {crates.length === 0 ? (
                 <Typography variant="body1" sx={{ py: 4, textAlign: 'center' }}>
                   No crates have been added to this batch yet.
@@ -1135,11 +1242,19 @@ const BatchDetailPage = () => {
                         primary={`QR Code: ${crate.qr_code}`}
                         secondary={
                           <>
-                            <Typography component="span" variant="body2" color="textPrimary">
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              color="textPrimary"
+                            >
                               Weight: {crate.weight || 'N/A'} kg
                             </Typography>
                             <br />
-                            <Typography component="span" variant="body2" color="textSecondary">
+                            <Typography
+                              component="span"
+                              variant="body2"
+                              color="textSecondary"
+                            >
                               Variety: {crate.variety_name || 'N/A'}
                             </Typography>
                           </>
@@ -1151,7 +1266,7 @@ const BatchDetailPage = () => {
               )}
             </CardContent>
           </Card>
-          
+
           {/* Batch Statistics Card */}
           <Card sx={{ mb: 3 }}>
             <CardContent>
@@ -1159,7 +1274,7 @@ const BatchDetailPage = () => {
                 Detailed Statistics
               </Typography>
               <Divider sx={{ mb: 2 }} />
-              
+
               <Grid container spacing={2}>
                 {batch.weight_details && (
                   <>
@@ -1168,44 +1283,60 @@ const BatchDetailPage = () => {
                         Average Crate Weight
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {batch.total_crates > 0 
-                          ? (batch.total_weight / batch.total_crates).toFixed(1) + ' kg' 
+                        {batch.total_crates > 0
+                          ? (batch.total_weight / batch.total_crates).toFixed(
+                              1
+                            ) + ' kg'
                           : 'N/A'}
                       </Typography>
-                      {batch.weight_details && batch.weight_details.weight_differential !== undefined && (
-                        <Box sx={{ mt: 2 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            Weight Differential
-                          </Typography>
-                          <Typography 
-                            variant="body1" 
-                            sx={{ 
-                              fontWeight: 500, 
-                              color: batch.weight_details.weight_differential > 0 ? 'success.main' : 'error.main'
-                            }}
-                          >
-                            {batch.weight_details.weight_differential.toFixed(1)} kg
-                            {batch.weight_details.weight_differential > 0 ? ' (gain)' : ' (loss)'}
-                          </Typography>
-                        </Box>
-                      )}
+                      {batch.weight_details &&
+                        batch.weight_details.weight_differential !==
+                          undefined && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Weight Differential
+                            </Typography>
+                            <Typography
+                              variant="body1"
+                              sx={{
+                                fontWeight: 500,
+                                color:
+                                  batch.weight_details.weight_differential > 0
+                                    ? 'success.main'
+                                    : 'error.main',
+                              }}
+                            >
+                              {batch.weight_details.weight_differential.toFixed(
+                                1
+                              )}{' '}
+                              kg
+                              {batch.weight_details.weight_differential > 0
+                                ? ' (gain)'
+                                : ' (loss)'}
+                            </Typography>
+                          </Box>
+                        )}
                     </Grid>
-                    
+
                     <Grid item xs={6}>
                       <Typography variant="body2" color="text.secondary">
                         Reconciliation Status
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {batch.status === 'RECONCILED' ? 'Complete' : 'In Progress'}
+                        {batch.status === 'RECONCILED'
+                          ? 'Complete'
+                          : 'In Progress'}
                       </Typography>
                     </Grid>
-                    
+
                     <Grid item xs={6}>
                       <Typography variant="body2" color="text.secondary">
                         Reconciliation Date
                       </Typography>
                       <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                        {batch.reconciled_at ? formatDate(batch.reconciled_at) : 'Not reconciled'}
+                        {batch.reconciled_at
+                          ? formatDate(batch.reconciled_at)
+                          : 'Not reconciled'}
                       </Typography>
                     </Grid>
                   </>
@@ -1213,29 +1344,27 @@ const BatchDetailPage = () => {
               </Grid>
             </CardContent>
           </Card>
-          
+
           {/* No additional content needed here */}
         </Grid>
       </Grid>
-      
+
       {/* Confirm Dialog */}
       <Dialog open={confirmDialog.open} onClose={closeConfirmDialog}>
         <DialogTitle>{confirmDialog.title}</DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            {confirmDialog.message}
-          </DialogContentText>
+          <DialogContentText>{confirmDialog.message}</DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={closeConfirmDialog} color="inherit">
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               confirmDialog.action();
               closeConfirmDialog();
-            }} 
-            color="primary" 
+            }}
+            color="primary"
             variant="contained"
             autoFocus
           >
@@ -1243,9 +1372,14 @@ const BatchDetailPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Minimal Crate Dialog */}
-      <Dialog open={minimalCrateOpen} onClose={() => setMinimalCrateOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={minimalCrateOpen}
+        onClose={() => setMinimalCrateOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>
           Add New Crate
           <IconButton
@@ -1324,7 +1458,7 @@ const BatchDetailPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Snackbar for notifications */}
       <Snackbar
         open={snackbarOpen}
@@ -1342,7 +1476,7 @@ const BatchDetailPage = () => {
           </IconButton>
         }
       />
-      
+
       {/* Batch Edit Form */}
       <BatchEditForm
         batch={batch}
@@ -1355,7 +1489,7 @@ const BatchDetailPage = () => {
         loading={editLoading}
         error={editError}
       />
-      
+
       {/* QR Scanner Dialog */}
       <Dialog
         open={scanning}
@@ -1382,7 +1516,7 @@ const BatchDetailPage = () => {
           <Button onClick={() => setScanning(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Dispatch Dialog */}
       <Dialog
         open={dispatchDialogOpen}
@@ -1417,7 +1551,7 @@ const BatchDetailPage = () => {
                 <FormHelperText>{dispatchErrors.vehicle_type}</FormHelperText>
               )}
             </FormControl>
-            
+
             <TextField
               required
               fullWidth
@@ -1429,7 +1563,7 @@ const BatchDetailPage = () => {
               error={!!dispatchErrors.driver_name}
               helperText={dispatchErrors.driver_name}
             />
-            
+
             <TextField
               required
               fullWidth
@@ -1443,7 +1577,7 @@ const BatchDetailPage = () => {
               error={!!dispatchErrors.eta}
               helperText={dispatchErrors.eta}
             />
-            
+
             <TextField
               fullWidth
               id="photo-url"
@@ -1452,7 +1586,7 @@ const BatchDetailPage = () => {
               value={dispatchData.photo_url}
               onChange={handleDispatchChange}
             />
-            
+
             <TextField
               fullWidth
               id="notes"
@@ -1477,7 +1611,7 @@ const BatchDetailPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Manual QR Entry Dialog */}
       <Dialog
         open={manualEntry}
@@ -1501,22 +1635,26 @@ const BatchDetailPage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setManualEntry(false)}>Cancel</Button>
-          <Button onClick={handleManualSubmit} variant="contained" color="primary">
+          <Button
+            onClick={handleManualSubmit}
+            variant="contained"
+            color="primary"
+          >
             Add Crate
           </Button>
         </DialogActions>
       </Dialog>
-      
+
       {/* Success Message */}
       {scanSuccess && (
-        <Alert 
-          severity="success" 
-          sx={{ 
-            position: 'fixed', 
-            bottom: 16, 
-            right: 16, 
+        <Alert
+          severity="success"
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
             zIndex: 9999,
-            maxWidth: '80%' 
+            maxWidth: '80%',
           }}
           onClose={() => setScanSuccess(null)}
         >
