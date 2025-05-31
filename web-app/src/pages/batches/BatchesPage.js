@@ -104,12 +104,12 @@ const BatchesPage = () => {
                 `${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(batch.id)}`
               );
               
-              // Fetch crates in the batch
-              console.log(`Fetching crates for batch ${batch.id} from: ${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}`);
+              // Fetch crates in the batch - get up to 100 crates
+              console.log(`Fetching crates for batch ${batch.id} from: ${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}?page=1&page_size=100`);
               let cratesData = [];
               try {
                 const cratesResponse = await axios.get(
-                  `${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}`
+                  `${API_URL}${ENDPOINTS.BATCH_CRATES(batch.id)}?page=1&page_size=100`
                 );
                 console.log('Crates response:', cratesResponse.data);
                 
