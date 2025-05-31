@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import {
   Box,
+  Button,
   Card,
   CardContent,
   Container,
@@ -37,24 +38,49 @@ const DashboardPage = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        // Fetch batches for stats
-        const batchesResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCHES}`);
-        // Extract batches array from the paginated response
-        const batches = batchesResponse.data.batches || [];
         
-        // Fetch crates for stats
-        const cratesResponse = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`);
-        // Extract crates array from the paginated response
-        const crates = cratesResponse.data.crates || [];
+        // Fetch batches for stats with proper error handling
+        let batches = [];
+        try {
+          const batchesResponse = await axios.get(`${API_URL}${ENDPOINTS.BATCHES}`);
+          // Check if the response has the expected structure
+          if (batchesResponse.data && batchesResponse.data.batches) {
+            batches = batchesResponse.data.batches;
+          } else if (Array.isArray(batchesResponse.data)) {
+            batches = batchesResponse.data;
+          } else {
+            console.warn('Unexpected batches response format:', batchesResponse.data);
+          }
+        } catch (batchError) {
+          console.error('Error fetching batches:', batchError);
+          // Continue with empty batches array instead of failing completely
+        }
         
-        // Calculate stats
+        // Fetch crates for stats with proper error handling
+        let crates = [];
+        try {
+          const cratesResponse = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`);
+          // Check if the response has the expected structure
+          if (cratesResponse.data && cratesResponse.data.crates) {
+            crates = cratesResponse.data.crates;
+          } else if (Array.isArray(cratesResponse.data)) {
+            crates = cratesResponse.data;
+          } else {
+            console.warn('Unexpected crates response format:', cratesResponse.data);
+          }
+        } catch (crateError) {
+          console.error('Error fetching crates:', crateError);
+          // Continue with empty crates array instead of failing completely
+        }
+        
+        // Calculate batch status stats with safe defaults
         const pendingBatches = batches.filter(batch => batch.status === 'PENDING' || batch.status === 'open').length;
-        const dispatchedBatches = batches.filter(batch => batch.status === 'DISPATCHED' || batch.status === 'dispatched').length;
+        const dispatchedBatches = batches.filter(batch => batch.status === 'DISPATCHED' || batch.status === 'dispatched' || batch.status === 'in_transit').length;
         const arrivedBatches = batches.filter(batch => batch.status === 'ARRIVED' || batch.status === 'arrived').length;
         const reconciledBatches = batches.filter(batch => batch.status === 'RECONCILED' || batch.status === 'reconciled').length;
         const closedBatches = batches.filter(batch => batch.status === 'CLOSED' || batch.status === 'closed' || batch.status === 'delivered').length;
         
-        // Calculate weight stats
+        // Calculate weight stats with safe defaults
         const totalOriginalWeight = batches.reduce((sum, batch) => sum + (batch.total_weight || 0), 0);
         const totalReconciledWeight = batches.reduce((sum, batch) => sum + (batch.reconciled_weight || 0), 0);
         const weightDifferential = totalOriginalWeight - totalReconciledWeight;
@@ -88,7 +114,10 @@ const DashboardPage = () => {
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
         // Make sure error is a string, not an object
-        setError(typeof error === 'object' ? (error.message || 'Failed to load dashboard data') : error);
+        setError(typeof error === 'object' ? 
+          (error.response?.data?.detail || error.message || 'Failed to load dashboard data') : 
+          error
+        );
         setLoading(false);
       }
     };
@@ -151,7 +180,22 @@ const DashboardPage = () => {
   if (error) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="80vh">
-        <Typography color="error">{error}</Typography>
+        <Paper elevation={3} sx={{ p: 3, maxWidth: '80%' }}>
+          <Typography variant="h6" color="error" gutterBottom>Dashboard Error</Typography>
+          <Typography>{error}</Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            sx={{ mt: 2 }}
+            onClick={() => {
+              setError(null);
+              setLoading(true);
+              window.location.reload();
+            }}
+          >
+            Retry
+          </Button>
+        </Paper>
       </Box>
     );
   }
