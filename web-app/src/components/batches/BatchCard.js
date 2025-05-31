@@ -128,6 +128,7 @@ const BatchCard = ({ batch, onClick }) => {
   // Get weight from various possible locations
   const getWeight = () => {
     const weight =
+      getNestedValue(batch, 'weight_details.total_original_weight', null) ||
       getNestedValue(batch, 'weight_details.original_weight', null) ||
       getNestedValue(batch, 'total_weight', null) ||
       getNestedValue(batch, 'weight', null) ||
@@ -144,13 +145,18 @@ const BatchCard = ({ batch, onClick }) => {
 
   // Extract weight details if available
   const originalWeight =
+    getNestedValue(batch, 'weight_details.total_original_weight', 0) ||
     getNestedValue(batch, 'weight_details.original_weight', 0) ||
     getNestedValue(batch, 'total_weight', 0) ||
     getNestedValue(batch, 'weight', 0) ||
     0;
   const reconciledWeight =
+    getNestedValue(batch, 'weight_details.total_reconciled_weight', 0) ||
     getNestedValue(batch, 'weight_details.reconciled_weight', 0) || 0;
-  const weightDifferential = originalWeight - reconciledWeight;
+  const weightDifferential = 
+    getNestedValue(batch, 'weight_details.total_weight_differential', null) !== null ?
+    getNestedValue(batch, 'weight_details.total_weight_differential', 0) :
+    originalWeight - reconciledWeight;
   const weightDifferentialPercentage =
     originalWeight > 0
       ? ((weightDifferential / originalWeight) * 100).toFixed(1)
