@@ -41,6 +41,10 @@ const BatchCreatePage = () => {
   
   // Refs for camera functionality
   const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  
+  // Camera state
+  const [facingMode, setFacingMode] = useState('environment'); // 'environment' for back camera, 'user' for front camera
   
   const [formData, setFormData] = useState({
     notes: '',
@@ -73,27 +77,6 @@ const BatchCreatePage = () => {
   
   // Effect to start/stop camera when dialog opens/closes
   useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (err) {
-        console.error('Error accessing camera:', err);
-        alert('Unable to access camera. Please check your permissions.');
-        setShowCamera(false);
-      }
-    };
-    
-    const stopCamera = () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = videoRef.current.srcObject.getTracks();
-        tracks.forEach(track => track.stop());
-        videoRef.current.srcObject = null;
-      }
-    };
-    
     if (showCamera) {
       startCamera();
     } else {
@@ -104,6 +87,53 @@ const BatchCreatePage = () => {
       stopCamera();
     };
   }, [showCamera]);
+  
+  // Start camera with current facing mode
+  const startCamera = async () => {
+    try {
+      // Stop any existing stream first
+      stopCamera();
+      
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: facingMode } 
+      });
+      
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Error starting camera:', err);
+      alert('Unable to access camera. Please check your permissions.');
+      setShowCamera(false);
+      return false;
+    }
+  };
+  
+  // Toggle between front and back cameras
+  const toggleCamera = async () => {
+    // Switch facing mode
+    const newFacingMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(newFacingMode);
+    
+    // Restart camera with new facing mode
+    await startCamera();
+  };
+  
+  const stopCamera = () => {
+    if (streamRef.current) {
+      const tracks = streamRef.current.getTracks();
+      tracks.forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
   
   // Get current GPS location
   const getCurrentLocation = () => {
@@ -373,6 +403,13 @@ const BatchCreatePage = () => {
           </DialogContent>
           <DialogActions>
             <Button onClick={handleCloseCamera}>Cancel</Button>
+            <Button
+              variant="outlined"
+              onClick={toggleCamera}
+              sx={{ mr: 1 }}
+            >
+              {facingMode === 'environment' ? 'Switch to Front Camera' : 'Switch to Back Camera'}
+            </Button>
             <Button variant="contained" color="primary" onClick={takePhoto}>Capture</Button>
           </DialogActions>
         </Dialog>
