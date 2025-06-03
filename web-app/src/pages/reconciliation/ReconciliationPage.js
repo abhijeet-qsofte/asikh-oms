@@ -43,14 +43,35 @@ const ReconciliationPage = () => {
   const fetchBatches = async () => {
     try {
       setLoading(true);
+      setError(null);
       
-      // Fetch batches that are in ARRIVED status (ready for reconciliation)
-      const response = await axios.get(`${API_URL}${ENDPOINTS.BATCHES}?status=ARRIVED`);
-      const batchesData = response.data;
+      // Fetch all batches first
+      const response = await axios.get(`${API_URL}${ENDPOINTS.BATCHES}`);
+      
+      // Check if the response contains the expected data structure
+      if (!response.data || !Array.isArray(response.data.batches)) {
+        console.error('Unexpected API response format:', response.data);
+        throw new Error('Unexpected API response format');
+      }
+      
+      // Filter batches that are in ARRIVED status (ready for reconciliation)
+      const arrivedBatches = response.data.batches.filter(
+        batch => batch.status === 'ARRIVED'
+      );
+      
+      console.log('Arrived batches:', arrivedBatches);
+      
+      if (arrivedBatches.length === 0) {
+        // No batches to reconcile
+        setBatches([]);
+        setFilteredBatches([]);
+        setLoading(false);
+        return;
+      }
       
       // Fetch weight details for each batch
       const batchesWithWeightDetails = await Promise.all(
-        batchesData.map(async (batch) => {
+        arrivedBatches.map(async (batch) => {
           try {
             const weightResponse = await axios.get(
               `${API_URL}${ENDPOINTS.BATCH_WEIGHT_DETAILS(batch.id)}`
@@ -74,7 +95,9 @@ const ReconciliationPage = () => {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching batches for reconciliation:', error);
-      setError('Failed to load batches for reconciliation');
+      setError('Failed to load batches for reconciliation. Please try again later.');
+      setBatches([]);
+      setFilteredBatches([]);
       setLoading(false);
     }
   };
