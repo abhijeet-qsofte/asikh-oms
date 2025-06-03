@@ -1598,7 +1598,7 @@ const BatchDetailPage = () => {
             onClick={handleDispatchSubmit}
             variant="contained"
             color="primary"
-            disabled={true}
+            disabled={!batch || !['open', 'created'].includes(batch.status)}
           >
             Dispatch Batch
           </Button>

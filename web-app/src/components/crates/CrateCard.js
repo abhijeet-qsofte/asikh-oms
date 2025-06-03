@@ -67,7 +67,13 @@ const CrateCard = ({ crate, varieties, farms, onUpdate, onDelete }) => {
   // Handle save edit
   const handleSaveEdit = () => {
     if (onUpdate) {
-      onUpdate(editedCrate);
+      // Pass the ID and the edited crate data separately to match the expected format
+      onUpdate({
+        id: editedCrate.id,
+        crateData: editedCrate
+      });
+      
+      console.log('Saving edited crate:', editedCrate);
     }
     setEditing(false);
   };
@@ -90,10 +96,16 @@ const CrateCard = ({ crate, varieties, farms, onUpdate, onDelete }) => {
   
   // Handle form field changes
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
+    
+    // Convert numeric fields to numbers
+    const processedValue = type === 'number' && value !== '' ? 
+      parseFloat(value) : 
+      value;
+      
     setEditedCrate({
       ...editedCrate,
-      [name]: value,
+      [name]: processedValue,
     });
   };
   

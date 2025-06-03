@@ -55,6 +55,8 @@ const CratesPage = () => {
   
   // Handle crate update
   const handleCrateUpdate = (updatedCrate) => {
+    console.log('Updating crate in CratesPage:', updatedCrate);
+    // Make sure we're passing the correct format to the updateCrate action
     dispatch(updateCrate(updatedCrate));
   };
   

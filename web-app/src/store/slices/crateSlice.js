@@ -62,11 +62,19 @@ export const createCrate = createAsyncThunk(
 // Update crate
 export const updateCrate = createAsyncThunk(
   'crates/updateCrate',
-  async ({ id, crateData }, { rejectWithValue }) => {
+  async (updateData, { rejectWithValue }) => {
     try {
+      // Handle both formats: either {id, crateData} or just the crate object with id
+      const id = updateData.id;
+      const crateData = updateData.crateData || updateData;
+      
+      console.log('Updating crate with ID:', id);
+      console.log('Crate data being sent:', crateData);
+      
       const response = await axios.put(`${API_URL}${ENDPOINTS.CRATE_DETAIL(id)}`, crateData);
       return response.data;
     } catch (error) {
+      console.error('Error updating crate:', error);
       const message = error.response?.data?.detail || 'Failed to update crate';
       return rejectWithValue(message);
     }
