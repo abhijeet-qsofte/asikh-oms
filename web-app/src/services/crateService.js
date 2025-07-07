@@ -15,7 +15,14 @@ const crateService = {
    */
   getCrates: async (params = {}) => {
     try {
-      const response = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`, { params });
+      // Ensure we have pagination parameters
+      const queryParams = {
+        page: params.page || 1,
+        page_size: params.page_size || 20,
+        ...params
+      };
+      
+      const response = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`, { params: queryParams });
       return response.data;
     } catch (error) {
       console.error('Error getting crates:', error.response?.data || error.message);

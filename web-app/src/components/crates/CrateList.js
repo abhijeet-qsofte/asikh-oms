@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Chip,
-  Divider,
   Paper,
   Button,
   CircularProgress,
@@ -39,7 +38,9 @@ const CrateList = ({
   loading = false,
   error = null,
   totalPages = 1,
+  totalItems = 0,
   currentPage = 1,
+  pageSize = 20,
   onPageChange,
   onUpdate,
   onDelete,
@@ -351,7 +352,7 @@ const CrateList = ({
         <>
           <Box mb={2} display="flex" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" component="div">
-              Showing {crates.length} crates
+              Showing {crates.length} of {totalItems} crates (page {currentPage} of {totalPages})
             </Typography>
           </Box>
           
@@ -376,13 +377,14 @@ const CrateList = ({
           </Grid>
           
           {/* Pagination */}
-          {totalPages > 1 && (
+          {totalItems > 0 && (
             <Box display="flex" justifyContent="center" mt={4}>
               <Pagination
                 count={totalPages}
                 page={currentPage}
                 onChange={handlePageChange}
                 color="primary"
+                disabled={loading}
               />
             </Box>
           )}

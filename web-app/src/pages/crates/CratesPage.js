@@ -6,8 +6,6 @@ import {
   Button,
   Container,
   Typography,
-  CircularProgress,
-  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -15,7 +13,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  QrCode as QrCodeIcon,
 } from '@mui/icons-material';
 import { getCrates, updateCrate, deleteCrate } from '../../store/slices/crateSlice';
 import { getVarieties } from '../../store/slices/varietySlice';
@@ -35,10 +32,10 @@ const CratesPage = () => {
   
   // Fetch crates, varieties, and farms on component mount
   useEffect(() => {
-    dispatch(getCrates());
+    dispatch(getCrates({ page: currentPage, page_size: 20 }));
     dispatch(getVarieties());
     dispatch(getFarms());
-  }, [dispatch]);
+  }, [dispatch, currentPage]);
   
   // Handle filter changes
   const handleFilter = (filterParams) => {
@@ -50,7 +47,13 @@ const CratesPage = () => {
   // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    dispatch(getCrates({ ...filters, page }));
+    // With our client-side pagination, we only need to fetch from API
+    // if we don't have the data or if filters are applied
+    if (Object.keys(filters).length > 0) {
+      dispatch(getCrates({ ...filters, page }));
+    } else {
+      dispatch(getCrates({ page }));
+    }
   };
   
   // Handle crate update
@@ -112,7 +115,9 @@ const CratesPage = () => {
         loading={loading}
         error={error}
         totalPages={pagination?.total_pages || 1}
+        totalItems={pagination?.total || 0}
         currentPage={currentPage}
+        pageSize={pagination?.page_size || 20}
         onPageChange={handlePageChange}
         onUpdate={handleCrateUpdate}
         onDelete={handleCrateDelete}

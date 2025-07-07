@@ -3,16 +3,73 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { API_URL, ENDPOINTS } from '../../constants/api';
 
-// Get all crates
+// Get all crates - using a simplified approach that works with the API limitations
 export const getCrates = createAsyncThunk(
   'crates/getCrates',
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, getState }) => {
     try {
-      const response = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`);
-      return response.data;
+      // Check if we already have all crates in the state
+      const { allCrates } = getState().crates;
+      let cratesData = [];
+      let total = 0;
+      
+      // Only fetch from API if we don't have crates or if filters are applied
+      if (allCrates.length === 0 || Object.keys(params).some(key => key !== 'page' && key !== 'page_size')) {
+        // We'll fetch all crates at once and handle pagination client-side
+        // This is the most reliable approach with the current API
+        const response = await axios.get(`${API_URL}${ENDPOINTS.CRATES}`);
+        
+        if (!response.data || !response.data.crates) {
+          return rejectWithValue('Invalid response format from server');
+        }
+        
+        cratesData = response.data.crates || [];
+        total = response.data.total || cratesData.length;
+      } else {
+        // Use existing crates data from state
+        cratesData = allCrates;
+        total = allCrates.length;
+      }
+      
+      const pageSize = params.page_size || 20;
+      const requestedPage = params.page || 1;
+      
+      // Calculate start and end indices for the requested page
+      const startIndex = (requestedPage - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, cratesData.length);
+      
+      // Get crates for the requested page
+      const paginatedCrates = cratesData.slice(startIndex, endIndex);
+      
+      // Add debugging logs
+      console.log(`Pagination debug: Page ${requestedPage}, Size ${pageSize}, Total ${total}`);
+      console.log(`Slice indices: ${startIndex} to ${endIndex}`);
+      console.log(`Total crates: ${cratesData.length}, Page crates: ${paginatedCrates.length}`);
+      
+      return {
+        allCrates: cratesData,  // All crates for client-side pagination
+        crates: paginatedCrates, // Current page of crates
+        page: requestedPage,
+        page_size: pageSize,
+        total: total
+      };
     } catch (error) {
-      const message = error.response?.data?.detail || 'Failed to fetch crates';
-      return rejectWithValue(message);
+      console.error('Error fetching crates:', error);
+      let errorMessage = 'Failed to fetch crates';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        errorMessage = error.response.data?.detail || `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'No response received from server. Please check your connection.';
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        errorMessage = error.message || 'Unknown error occurred';
+      }
+      
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -115,7 +172,8 @@ export const updateCrateWeight = createAsyncThunk(
 );
 
 const initialState = {
-  crates: [],
+  crates: [],         // Current page of crates
+  allCrates: [],      // All crates for client-side pagination
   currentCrate: null,
   batchCrates: {},
   loading: false,
@@ -124,6 +182,12 @@ const initialState = {
   createError: null,
   updateLoading: false,
   updateError: null,
+  pagination: {
+    page: 1,
+    page_size: 20,
+    total: 0,
+    total_pages: 1
+  },
 };
 
 const crateSlice = createSlice({
@@ -149,6 +213,22 @@ const crateSlice = createSlice({
       .addCase(getCrates.fulfilled, (state, action) => {
         state.loading = false;
         state.crates = action.payload.crates || [];
+        state.allCrates = action.payload.allCrates || [];
+        
+        // Get values from payload
+        const total = action.payload.total || 0;
+        const pageSize = action.payload.page_size || 20;
+        
+        // Calculate total pages based on total items and page size
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        
+        // Update pagination information
+        state.pagination = {
+          page: action.payload.page || 1,
+          page_size: pageSize,
+          total: total,
+          total_pages: totalPages
+        };
       })
       .addCase(getCrates.rejected, (state, action) => {
         state.loading = false;

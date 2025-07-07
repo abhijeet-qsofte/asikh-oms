@@ -53,7 +53,7 @@ export const ENDPOINTS = {
   QR_CODE_VALIDATE: (value) => `${API_VERSION}/qr-codes/validate/${value}`,
   
   // Crate Management
-  CRATES: `${API_VERSION}/crates`,
+  CRATES: `${API_VERSION}/crates/`,
   CRATE_DETAIL: (id) => `${API_VERSION}/crates/${id}`,
   CRATE_BY_QR: (qrCode) => `${API_VERSION}/crates/qr/${qrCode}`,
   CRATE_ASSIGN_BATCH: `${API_VERSION}/crates/assign-batch`,
